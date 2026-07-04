@@ -47,9 +47,13 @@ export default function Dashboard({ cafe, token, onLogout, onUpdateCafe }) {
 
     useEffect(() => {
         if (!token || !cafe) {
-            navigate('/auth');
+            navigate('/');
         }
     }, [token, cafe, navigate]);
+
+    if (!token || !cafe) {
+        return null;
+    }
 
     const handleCreateCoupon = async (e) => {
         e.preventDefault();

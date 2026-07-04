@@ -19,6 +19,13 @@ export default function CustomerEntry() {
         }
     });
 
+    // Redirect if owner is logged in
+    useEffect(() => {
+        if (localStorage.getItem('ownerToken')) {
+            navigate('/dashboard');
+        }
+    }, [navigate]);
+
     const [loginName, setLoginName] = useState('');
     const [loginEmail, setLoginEmail] = useState('');
     const [otpCode, setOtpCode] = useState('');
