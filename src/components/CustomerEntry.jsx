@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { API_BASE_URL } from '../config';
 
 export default function CustomerEntry() {
     const { slug } = useParams();
@@ -56,7 +57,7 @@ export default function CustomerEntry() {
         setCouponOtpError('');
 
         try {
-            const res = await fetch('http://localhost:5000/api/coupon/send-otp', {
+            const res = await fetch(`${API_BASE_URL}/api/coupon/send-otp`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -86,7 +87,7 @@ export default function CustomerEntry() {
         setCouponOtpError('');
 
         try {
-            const res = await fetch('http://localhost:5000/api/coupon/verify-otp', {
+            const res = await fetch(`${API_BASE_URL}/api/coupon/verify-otp`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -115,7 +116,7 @@ export default function CustomerEntry() {
         setTransactionError('');
 
         try {
-            const res = await fetch('http://localhost:5000/api/transaction/create', {
+            const res = await fetch(`${API_BASE_URL}/api/transaction/create`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -157,7 +158,7 @@ export default function CustomerEntry() {
         setCouponOtpError('');
 
         // Refresh cafe coupons to get updated daily frequency counts!
-        fetch(`http://localhost:5000/api/cafe/${slug}`)
+        fetch(`${API_BASE_URL}/api/cafe/${slug}`)
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
@@ -171,7 +172,7 @@ export default function CustomerEntry() {
         setLoading(true);
         setError('');
 
-        fetch(`http://localhost:5000/api/cafe/${slug}`)
+        fetch(`${API_BASE_URL}/api/cafe/${slug}`)
             .then((res) => {
                 if (!res.ok) {
                     throw new Error('Cafe not found or backend server offline');
@@ -200,7 +201,7 @@ export default function CustomerEntry() {
         setAuthError('');
 
         try {
-            const res = await fetch('http://localhost:5000/api/auth/send-otp', {
+            const res = await fetch(`${API_BASE_URL}/api/auth/send-otp`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -227,7 +228,7 @@ export default function CustomerEntry() {
         setAuthError('');
 
         try {
-            const res = await fetch('http://localhost:5000/api/auth/verify-otp', {
+            const res = await fetch(`${API_BASE_URL}/api/auth/verify-otp`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'

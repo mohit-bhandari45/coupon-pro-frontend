@@ -4,6 +4,7 @@ import LandingPage from './components/LandingPage';
 import Dashboard from './components/Dashboard';
 import AuthPage from './components/AuthPage';
 import CustomerEntry from './components/CustomerEntry';
+import { API_BASE_URL } from './config';
 
 function App() {
   const [token, setToken] = useState(() => localStorage.getItem('ownerToken') || '');
@@ -19,7 +20,7 @@ function App() {
   // Sync token validation state with backend if needed
   useEffect(() => {
     if (token) {
-      fetch('http://localhost:5000/api/auth/me', {
+      fetch(`${API_BASE_URL}/api/auth/me`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }

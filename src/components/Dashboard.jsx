@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { API_BASE_URL } from '../config';
 
 export default function Dashboard({ cafe, token, onLogout, onUpdateCafe }) {
     const navigate = useNavigate();
@@ -29,7 +30,7 @@ export default function Dashboard({ cafe, token, onLogout, onUpdateCafe }) {
     const fetchCoupons = async () => {
         if (!cafe?.slug) return;
         try {
-            const res = await fetch(`http://localhost:5000/api/cafe/${cafe.slug}`);
+            const res = await fetch(`${API_BASE_URL}/api/cafe/${cafe.slug}`);
             const data = await res.json();
             if (data.success) {
                 setCoupons(data.coupons || []);
@@ -62,7 +63,7 @@ export default function Dashboard({ cafe, token, onLogout, onUpdateCafe }) {
         setCouponLoading(true);
 
         try {
-            const response = await fetch('http://localhost:5000/api/cafe/coupons', {
+            const response = await fetch(`${API_BASE_URL}/api/cafe/coupons`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -111,7 +112,7 @@ export default function Dashboard({ cafe, token, onLogout, onUpdateCafe }) {
         setLoading(true);
 
         try {
-            const response = await fetch('http://localhost:5000/api/cafe/update', {
+            const response = await fetch(`${API_BASE_URL}/api/cafe/update`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',

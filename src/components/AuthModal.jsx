@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { API_BASE_URL } from '../config';
 
 export default function AuthModal({ onClose, onAuthSuccess }) {
     const [isLogin, setIsLogin] = useState(true);
@@ -20,8 +21,8 @@ export default function AuthModal({ onClose, onAuthSuccess }) {
         setLoading(true);
 
         const url = isLogin
-            ? 'http://localhost:5000/api/auth/login'
-            : 'http://localhost:5000/api/auth/register';
+            ? `${API_BASE_URL}/api/auth/login`
+            : `${API_BASE_URL}/api/auth/register`;
 
         const payload = isLogin
             ? { email, password }

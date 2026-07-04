@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { API_BASE_URL } from '../config';
 
 export default function AuthPage({ onAuthSuccess }) {
     const navigate = useNavigate();
@@ -30,8 +31,8 @@ export default function AuthPage({ onAuthSuccess }) {
         setLoading(true);
 
         const url = isLogin
-            ? 'http://localhost:5000/api/auth/login'
-            : 'http://localhost:5000/api/auth/register';
+            ? `${API_BASE_URL}/api/auth/login`
+            : `${API_BASE_URL}/api/auth/register`;
 
         const payload = isLogin
             ? { email, password }
