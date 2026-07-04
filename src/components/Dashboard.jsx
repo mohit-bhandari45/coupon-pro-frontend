@@ -15,11 +15,90 @@ export default function Dashboard({ cafe, token, onLogout, onUpdateCafe }) {
     const [address, setAddress] = useState(cafe?.address || '');
     const [upiId, setUpiId] = useState(cafe?.upi_id || '');
 
+    // Coupons State Fields
+    const [coupons, setCoupons] = useState([]);
+    const [couponTitle, setCouponTitle] = useState('');
+    const [couponDesc, setCouponDesc] = useState('');
+    const [couponBadge, setCouponBadge] = useState('Save');
+    const [discountType, setDiscountType] = useState('percent');
+    const [discountValue, setDiscountValue] = useState('');
+    const [frequency, setFrequency] = useState('1');
+    const [couponLoading, setCouponLoading] = useState(false);
+
+    // Fetch Cafe coupons list
+    const fetchCoupons = async () => {
+        if (!cafe?.slug) return;
+        try {
+            const res = await fetch(`http://localhost:5000/api/cafe/${cafe.slug}`);
+            const data = await res.json();
+            if (data.success) {
+                setCoupons(data.coupons || []);
+            }
+        } catch (err) {
+            console.error('Error fetching store coupons:', err);
+        }
+    };
+
+    useEffect(() => {
+        if (cafe?.slug) {
+            fetchCoupons();
+        }
+    }, [cafe?.slug]);
+
     useEffect(() => {
         if (!token || !cafe) {
             navigate('/auth');
         }
     }, [token, cafe, navigate]);
+
+    const handleCreateCoupon = async (e) => {
+        e.preventDefault();
+        setSuccessMsg('');
+        setErrorMsg('');
+        setCouponLoading(true);
+
+        try {
+            const response = await fetch('http://localhost:5000/api/cafe/coupons', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    title: couponTitle,
+                    desc_text: couponDesc,
+                    badge_label: couponBadge,
+                    discount_type: discountType,
+                    discount_value: parseFloat(discountValue),
+                    frequency_per_day: parseInt(frequency)
+                })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok || !data.success) {
+                throw new Error(data.message || 'Failed to create coupon');
+            }
+
+            setSuccessMsg('New Loyalty Coupon created successfully!');
+
+            // Clear inputs
+            setCouponTitle('');
+            setCouponDesc('');
+            setCouponBadge('Save');
+            setDiscountType('percent');
+            setDiscountValue('');
+            setFrequency('1');
+
+            // Refresh coupons list
+            await fetchCoupons();
+            setActiveTab('coupons');
+        } catch (err) {
+            setErrorMsg(err.message || 'Error occurred while creating coupon');
+        } finally {
+            setCouponLoading(false);
+        }
+    };
 
     const handleUpdateSettings = async (e) => {
         e.preventDefault();
@@ -105,17 +184,42 @@ export default function Dashboard({ cafe, token, onLogout, onUpdateCafe }) {
                                 ⚙️ Settings
                             </button>
                         </li>
+                        <li className="sidebar-item">
+                            <button
+                                onClick={() => { setActiveTab('coupons'); setSuccessMsg(''); setErrorMsg(''); }}
+                                className={`sidebar-link ${activeTab === 'coupons' ? 'active' : ''}`}
+                                style={{ background: 'none', border: 'none', width: '100%', textAlign: 'left' }}
+                            >
+                                🔑 Loyalty Coupons
+                            </button>
+                        </li>
                     </ul>
 
-                    <div style={{ marginTop: '40px', padding: '16px', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
-                        <h4 style={{ fontSize: '13px', textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: '8px', letterSpacing: '0.5px' }}>
-                            QR Code Scanner Link
+                    <div style={{ marginTop: '40px', padding: '20px', background: 'rgba(139, 92, 246, 0.03)', borderRadius: '16px', border: '1px solid var(--border-color)', textAlign: 'center' }}>
+                        <h4 style={{ fontSize: '13px', textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: '16px', letterSpacing: '0.5px' }}>
+                            Counter QR Code
                         </h4>
-                        <p style={{ fontSize: '12px', color: '#c084fc', wordBreak: 'break-all', fontWeight: '500' }}>
-                            {getQRScanUrl()}
-                        </p>
-                        <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '8px' }}>
-                            Print this QR link for customer scanning at the checkout counter.
+
+                        <div style={{ background: '#0b0a0f', padding: '12px', borderRadius: '12px', display: 'inline-block', border: '1px solid var(--border-color)', marginBottom: '16px' }}>
+                            <img
+                                src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&color=8b5cf6&bgcolor=0b0a0f&data=${encodeURIComponent(getQRScanUrl())}`}
+                                alt="Cafe Counter QR Code"
+                                style={{ display: 'block', width: '150px', height: '150px' }}
+                            />
+                        </div>
+
+                        <a
+                            href={`https://api.qrserver.com/v1/create-qr-code/?size=400x400&color=8b5cf6&bgcolor=0b0a0f&data=${encodeURIComponent(getQRScanUrl())}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="btn btn-secondary"
+                            style={{ width: '100%', padding: '8px 12px', fontSize: '13px', display: 'inline-flex', justifyContent: 'center' }}
+                        >
+                            📥 Print / Download
+                        </a>
+
+                        <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '12px', lineHeight: '1.4' }}>
+                            Customers scan this counter QR to instantly view, claim and verify available loyalty rewards on their phone.
                         </p>
                     </div>
                 </aside>
@@ -224,7 +328,7 @@ export default function Dashboard({ cafe, token, onLogout, onUpdateCafe }) {
                                         onChange={(e) => setName(e.target.value)}
                                         required
                                     />
-                                    <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>Slug will remain: {cafe.slug}</p>
+                                    <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>Slug will remain: {cafe?.slug}</p>
                                 </div>
 
                                 <div className="form-group">
@@ -283,6 +387,150 @@ export default function Dashboard({ cafe, token, onLogout, onUpdateCafe }) {
                             </form>
                         </div>
                     )}
+
+                    {activeTab === 'coupons' && (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '30px', textAlign: 'left' }}>
+                            {/* Left: Coupons Form */}
+                            <div className="card" style={{ height: 'fit-content' }}>
+                                <h2 style={{ fontSize: '22px', marginBottom: '8px' }}>Create Loyalty Reward</h2>
+                                <p style={{ color: 'var(--text-secondary)', marginBottom: '24px', fontSize: '14px' }}>Add dynamic discount rules that customers scan and apply.</p>
+
+                                <form onSubmit={handleCreateCoupon}>
+                                    <div className="form-group">
+                                        <label className="form-label">Coupon Title</label>
+                                        <input
+                                            type="text"
+                                            className="form-input"
+                                            value={couponTitle}
+                                            onChange={(e) => setCouponTitle(e.target.value)}
+                                            placeholder="e.g. Buy 1 Get 1 Coffee"
+                                            required
+                                        />
+                                    </div>
+
+                                    <div className="form-group">
+                                        <label className="form-label">Description Text</label>
+                                        <input
+                                            type="text"
+                                            className="form-input"
+                                            value={couponDesc}
+                                            onChange={(e) => setCouponDesc(e.target.value)}
+                                            placeholder="e.g. Buy any hot beverage, get second brew free"
+                                            required
+                                        />
+                                    </div>
+
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                                        <div className="form-group">
+                                            <label className="form-label">Badge Tag</label>
+                                            <select
+                                                className="form-input"
+                                                value={couponBadge}
+                                                onChange={(e) => setCouponBadge(e.target.value)}
+                                                style={{ background: '#1c1b22', border: '1px solid var(--border-color)', height: '42px', color: '#fff', borderRadius: '8px', padding: '0 12px' }}
+                                            >
+                                                <option value="Save">Save</option>
+                                                <option value="Combo">Combo</option>
+                                                <option value="Limit">Limit</option>
+                                                <option value="Special">Special</option>
+                                            </select>
+                                        </div>
+
+                                        <div className="form-group">
+                                            <label className="form-label">Discount Type</label>
+                                            <select
+                                                className="form-input"
+                                                value={discountType}
+                                                onChange={(e) => setDiscountType(e.target.value)}
+                                                style={{ background: '#1c1b22', border: '1px solid var(--border-color)', height: '42px', color: '#fff', borderRadius: '8px', padding: '0 12px' }}
+                                            >
+                                                <option value="percent">Percentage Off</option>
+                                                <option value="flat">Flat Rupees Off</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                                        <div className="form-group">
+                                            <label className="form-label">Discount Value</label>
+                                            <input
+                                                type="number"
+                                                className="form-input"
+                                                value={discountValue}
+                                                onChange={(e) => setDiscountValue(e.target.value)}
+                                                placeholder={discountType === 'percent' ? 'e.g. 15 (%)' : 'e.g. 100 (₹)'}
+                                                min="1"
+                                                required
+                                            />
+                                        </div>
+
+                                        <div className="form-group">
+                                            <label className="form-label">Daily Use Limit</label>
+                                            <input
+                                                type="number"
+                                                className="form-input"
+                                                value={frequency}
+                                                onChange={(e) => setFrequency(e.target.value)}
+                                                placeholder="e.g. 1"
+                                                min="1"
+                                                required
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <button
+                                        type="submit"
+                                        className="btn btn-primary"
+                                        style={{ width: '100%', marginTop: '12px', height: '44px' }}
+                                        disabled={couponLoading}
+                                    >
+                                        {couponLoading ? 'Creating Reward...' : 'Create Coupon Code'}
+                                    </button>
+                                </form>
+                            </div>
+
+                            {/* Right: Existing List */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                <h3 style={{ margin: 0, paddingLeft: '4px' }}>Active Loyalty Codes ({coupons.length})</h3>
+                                {coupons.length === 0 ? (
+                                    <div className="card" style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                                        No coupons created yet. Use the editor to add your first deal!
+                                    </div>
+                                ) : (
+                                    coupons.map((coupon) => (
+                                        <div key={coupon.id} className="card" style={{ padding: '20px', borderLeft: '3px solid var(--color-accent)' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                                <span
+                                                    style={{
+                                                        background: coupon.badge_label === 'Save' ? 'rgba(139, 92, 246, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                                                        border: coupon.badge_label === 'Save' ? '1px solid rgba(139, 92, 246, 0.3)' : '1px solid rgba(16, 185, 129, 0.3)',
+                                                        color: coupon.badge_label === 'Save' ? '#C084FC' : '#34D399',
+                                                        padding: '2px 8px',
+                                                        borderRadius: '100px',
+                                                        fontSize: '10px',
+                                                        fontWeight: 600,
+                                                        textTransform: 'uppercase'
+                                                    }}
+                                                >
+                                                    {coupon.badge_label}
+                                                </span>
+                                                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                                                    Limit: {coupon.frequency_per_day}/day
+                                                </span>
+                                            </div>
+                                            <h4 style={{ fontSize: '16px', margin: '4px 0', color: '#fff' }}>{coupon.title}</h4>
+                                            <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: '4px 0 12px 0' }}>{coupon.desc_text}</p>
+
+                                            <div style={{ fontSize: '12px', background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-color)', display: 'inline-block', padding: '6px 12px', borderRadius: '6px', color: 'var(--text-secondary)' }}>
+                                                Rule: <strong style={{ color: '#fff' }}>{coupon.discount_type === 'percent' ? `${coupon.discount_value}% Off` : `₹${coupon.discount_value} Off`}</strong>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+                    )}
+
                 </main>
             </div>
         </div>

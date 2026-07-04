@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import LandingPage from './components/LandingPage';
 import Dashboard from './components/Dashboard';
 import AuthPage from './components/AuthPage';
+import CustomerEntry from './components/CustomerEntry';
 
 function App() {
   const [token, setToken] = useState(() => localStorage.getItem('ownerToken') || '');
@@ -83,6 +84,11 @@ function App() {
               onUpdateCafe={handleUpdateCafe}
             />
           }
+        />
+
+        <Route
+          path="/:slug"
+          element={<CustomerEntry />}
         />
       </Routes>
     </Router>
