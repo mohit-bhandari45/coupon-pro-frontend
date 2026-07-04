@@ -74,7 +74,7 @@ export default function Dashboard({ cafe, token, onLogout, onUpdateCafe }) {
                     badge_label: couponBadge,
                     discount_type: discountType,
                     discount_value: parseFloat(discountValue),
-                    frequency_per_day: parseInt(frequency)
+                    max_uses: parseInt(frequency)
                 })
             });
 
@@ -469,13 +469,13 @@ export default function Dashboard({ cafe, token, onLogout, onUpdateCafe }) {
                                         </div>
 
                                         <div className="form-group">
-                                            <label className="form-label">Daily Use Limit</label>
+                                            <label className="form-label">Total Usage Limit</label>
                                             <input
                                                 type="number"
                                                 className="form-input"
                                                 value={frequency}
                                                 onChange={(e) => setFrequency(e.target.value)}
-                                                placeholder="e.g. 1"
+                                                placeholder="e.g. 100"
                                                 min="1"
                                                 required
                                             />
@@ -519,7 +519,7 @@ export default function Dashboard({ cafe, token, onLogout, onUpdateCafe }) {
                                                     {coupon.badge_label}
                                                 </span>
                                                 <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                                                    Limit: {coupon.frequency_per_day}/day
+                                                    Limit: {coupon.max_uses ?? coupon.frequency_per_day} claims
                                                 </span>
                                             </div>
                                             <h4 style={{ fontSize: '16px', margin: '4px 0', color: '#fff' }}>{coupon.title}</h4>

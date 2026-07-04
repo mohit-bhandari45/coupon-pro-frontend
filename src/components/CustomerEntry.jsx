@@ -630,7 +630,7 @@ export default function CustomerEntry() {
                             ) : (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                                     {coupons.map((coupon) => {
-                                        const isExhausted = coupon.remaining_today !== undefined && coupon.remaining_today <= 0;
+                                        const isExhausted = coupon.remaining_uses !== undefined && coupon.remaining_uses <= 0;
                                         return (
                                             <div
                                                 key={coupon.id}
@@ -666,8 +666,8 @@ export default function CustomerEntry() {
                                                         </span>
                                                         <span style={{ fontSize: '11px', color: isExhausted ? '#F87171' : '#34D399', fontWeight: 500 }}>
                                                             {isExhausted
-                                                                ? 'Fully Redeemed Today'
-                                                                : `${coupon.remaining_today ?? coupon.frequency_per_day} remaining today`
+                                                                ? 'Fully Redeemed'
+                                                                : `${coupon.remaining_uses ?? coupon.max_uses ?? coupon.frequency_per_day} remaining`
                                                             }
                                                         </span>
                                                     </div>
@@ -687,7 +687,10 @@ export default function CustomerEntry() {
                                                 </div>
 
                                                 <h4 style={{ fontSize: '16px', margin: '10px 0 4px 0', color: '#fff' }}>{coupon.title}</h4>
-                                                <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: 0 }}>{coupon.desc_text}</p>
+                                                <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: '0 0 10px 0' }}>{coupon.desc_text}</p>
+                                                <div style={{ fontSize: '12px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)', display: 'inline-block', padding: '4px 10px', borderRadius: '6px', color: 'var(--text-secondary)' }}>
+                                                    Discount: <strong style={{ color: '#fff' }}>{coupon.discount_type === 'percent' ? `${coupon.discount_value}% Off` : `₹${coupon.discount_value} Off`}</strong>
+                                                </div>
                                             </div>
                                         );
                                     })}
