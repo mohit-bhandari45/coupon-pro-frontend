@@ -18,6 +18,7 @@ export default function Dashboard({ cafe, token, onLogout, onUpdateCafe }) {
 
     // Coupons State Fields
     const [coupons, setCoupons] = useState([]);
+    const [transactions, setTransactions] = useState([]);
     const [couponTitle, setCouponTitle] = useState('');
     const [couponDesc, setCouponDesc] = useState('');
     const [couponBadge, setCouponBadge] = useState('Save');
@@ -35,8 +36,18 @@ export default function Dashboard({ cafe, token, onLogout, onUpdateCafe }) {
             if (data.success) {
                 setCoupons(data.coupons || []);
             }
+
+            const txRes = await fetch(`${API_BASE_URL}/api/cafe/transactions`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            const txData = await txRes.json();
+            if (txData.success) {
+                setTransactions(txData.transactions || []);
+            }
         } catch (err) {
-            console.error('Error fetching store coupons:', err);
+            console.error('Error fetching store coupons & transactions:', err);
         }
     };
 
@@ -44,7 +55,7 @@ export default function Dashboard({ cafe, token, onLogout, onUpdateCafe }) {
         if (cafe?.slug) {
             fetchCoupons();
         }
-    }, [cafe?.slug]);
+    }, [cafe?.slug, activeTab]);
 
     useEffect(() => {
         if (!token || !cafe) {
@@ -146,6 +157,11 @@ export default function Dashboard({ cafe, token, onLogout, onUpdateCafe }) {
     const getQRScanUrl = () => {
         return `${window.location.origin}/${cafe.slug}`;
     };
+
+    // Calculate loyalty statistics dynamically from actual transactions
+    const totalClaims = transactions.filter(t => t.coupon_id).length;
+    const totalVisits = transactions.length;
+    const totalRevenue = transactions.reduce((sum, t) => sum + parseFloat(t.payable_amount || 0), 0);
 
     return (
         <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -259,15 +275,15 @@ export default function Dashboard({ cafe, token, onLogout, onUpdateCafe }) {
                             <div className="dashboard-stats">
                                 <div className="card stat-card">
                                     <div className="stat-label">Total Visits</div>
-                                    <div className="stat-value">0</div>
+                                    <div className="stat-value">{totalVisits}</div>
                                 </div>
                                 <div className="card stat-card">
                                     <div className="stat-label">Loyalty Claims</div>
-                                    <div className="stat-value">0</div>
+                                    <div className="stat-value">{totalClaims}</div>
                                 </div>
                                 <div className="card stat-card">
-                                    <div className="stat-label">Discount Given</div>
-                                    <div className="stat-value">₹0.00</div>
+                                    <div className="stat-label">Total Revenue</div>
+                                    <div className="stat-value">₹{totalRevenue.toFixed(2)}</div>
                                 </div>
                             </div>
 
@@ -502,35 +518,40 @@ export default function Dashboard({ cafe, token, onLogout, onUpdateCafe }) {
                                         No coupons created yet. Use the editor to add your first deal!
                                     </div>
                                 ) : (
-                                    coupons.map((coupon) => (
-                                        <div key={coupon.id} className="card" style={{ padding: '20px', borderLeft: '3px solid var(--color-accent)' }}>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                                                <span
-                                                    style={{
-                                                        background: coupon.badge_label === 'Save' ? 'rgba(139, 92, 246, 0.1)' : 'rgba(16, 185, 129, 0.1)',
-                                                        border: coupon.badge_label === 'Save' ? '1px solid rgba(139, 92, 246, 0.3)' : '1px solid rgba(16, 185, 129, 0.3)',
-                                                        color: coupon.badge_label === 'Save' ? '#C084FC' : '#34D399',
-                                                        padding: '2px 8px',
-                                                        borderRadius: '100px',
-                                                        fontSize: '10px',
-                                                        fontWeight: 600,
-                                                        textTransform: 'uppercase'
-                                                    }}
-                                                >
-                                                    {coupon.badge_label}
-                                                </span>
-                                                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                                                    Limit: {coupon.max_uses ?? coupon.frequency_per_day} claims
-                                                </span>
-                                            </div>
-                                            <h4 style={{ fontSize: '16px', margin: '4px 0', color: '#fff' }}>{coupon.title}</h4>
-                                            <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: '4px 0 12px 0' }}>{coupon.desc_text}</p>
+                                    coupons.map((coupon) => {
+                                        const total = coupon.max_uses ?? coupon.frequency_per_day ?? 1;
+                                        const remaining = coupon.remaining_uses !== undefined ? coupon.remaining_uses : total;
+                                        const claimed = Math.max(0, total - remaining);
+                                        return (
+                                            <div key={coupon.id} className="card" style={{ padding: '20px', borderLeft: '3px solid var(--color-accent)' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                                    <span
+                                                        style={{
+                                                            background: coupon.badge_label === 'Save' ? 'rgba(139, 92, 246, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                                                            border: coupon.badge_label === 'Save' ? '1px solid rgba(139, 92, 246, 0.3)' : '1px solid rgba(16, 185, 129, 0.3)',
+                                                            color: coupon.badge_label === 'Save' ? '#C084FC' : '#34D399',
+                                                            padding: '2px 8px',
+                                                            borderRadius: '100px',
+                                                            fontSize: '10px',
+                                                            fontWeight: 600,
+                                                            textTransform: 'uppercase'
+                                                        }}
+                                                    >
+                                                        {coupon.badge_label}
+                                                    </span>
+                                                    <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                                                        Claimed: {claimed} / {total} ({remaining} remaining)
+                                                    </span>
+                                                </div>
+                                                <h4 style={{ fontSize: '16px', margin: '4px 0', color: '#fff' }}>{coupon.title}</h4>
+                                                <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: '4px 0 12px 0' }}>{coupon.desc_text}</p>
 
-                                            <div style={{ fontSize: '12px', background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-color)', display: 'inline-block', padding: '6px 12px', borderRadius: '6px', color: 'var(--text-secondary)' }}>
-                                                Rule: <strong style={{ color: '#fff' }}>{coupon.discount_type === 'percent' ? `${coupon.discount_value}% Off` : `₹${coupon.discount_value} Off`}</strong>
+                                                <div style={{ fontSize: '12px', background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-color)', display: 'inline-block', padding: '6px 12px', borderRadius: '6px', color: 'var(--text-secondary)' }}>
+                                                    Rule: <strong style={{ color: '#fff' }}>{coupon.discount_type === 'percent' ? `${coupon.discount_value}% Off` : `₹${coupon.discount_value} Off`}</strong>
+                                                </div>
                                             </div>
-                                        </div>
-                                    ))
+                                        );
+                                    })
                                 )}
                             </div>
                         </div>

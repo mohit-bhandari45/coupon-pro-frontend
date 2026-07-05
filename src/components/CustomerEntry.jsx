@@ -20,6 +20,11 @@ export default function CustomerEntry() {
         }
     });
 
+    const [remainingCredits, setRemainingCredits] = useState(() => {
+        const saved = localStorage.getItem('customerCredits');
+        return saved ? parseInt(saved, 10) : 3;
+    });
+
     // Redirect if owner is logged in
     useEffect(() => {
         if (localStorage.getItem('ownerToken')) {
@@ -166,6 +171,19 @@ export default function CustomerEntry() {
                 }
             })
             .catch(console.error);
+
+        // Refresh customer credits
+        if (customerUser?.email) {
+            fetch(`${API_BASE_URL}/api/auth/credits/${customerUser.email}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        localStorage.setItem('customerCredits', data.remaining.toString());
+                        setRemainingCredits(data.remaining);
+                    }
+                })
+                .catch(console.error);
+        }
     };
 
     useEffect(() => {
@@ -193,7 +211,19 @@ export default function CustomerEntry() {
             .finally(() => {
                 setLoading(false);
             });
-    }, [slug]);
+
+        if (customerUser?.email) {
+            fetch(`${API_BASE_URL}/api/auth/credits/${customerUser.email}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        localStorage.setItem('customerCredits', data.remaining.toString());
+                        setRemainingCredits(data.remaining);
+                    }
+                })
+                .catch(console.error);
+        }
+    }, [slug, customerUser]);
 
     const handleSendOtp = async (e) => {
         e.preventDefault();
@@ -244,7 +274,10 @@ export default function CustomerEntry() {
             if (data.success) {
                 localStorage.setItem('customerToken', data.token);
                 localStorage.setItem('customerUser', JSON.stringify(data.user));
+                const credits = data.remainingCredits !== undefined ? data.remainingCredits : 3;
+                localStorage.setItem('customerCredits', credits.toString());
                 setCustomerUser(data.user);
+                setRemainingCredits(credits);
             } else {
                 setAuthError(data.message || 'OTP verification failed');
             }
@@ -592,6 +625,38 @@ export default function CustomerEntry() {
                     /* Standard Scan Landing Entry Screen */
                     <form onSubmit={handleApplyCoupon} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
+                        {/* Customer Credits Information Panel */}
+                        {customerUser && (
+                            <div className="card" style={{
+                                padding: '16px 20px',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                borderLeft: remainingCredits === 0 ? '4px solid #EF4444' : '4px solid #34D399',
+                                background: 'rgba(255,255,255,0.01)'
+                            }}>
+                                <div>
+                                    <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Redemption Credits</div>
+                                    <div style={{ fontSize: '15px', fontWeight: 700, color: '#fff', marginTop: '2px' }}>
+                                        {customerUser.name || 'Anonymous User'}
+                                    </div>
+                                </div>
+                                <div style={{ textAlign: 'right' }}>
+                                    <span style={{
+                                        padding: '4px 10px',
+                                        borderRadius: '100px',
+                                        fontSize: '12px',
+                                        fontWeight: 700,
+                                        background: remainingCredits === 0 ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                                        border: remainingCredits === 0 ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(16, 185, 129, 0.3)',
+                                        color: remainingCredits === 0 ? '#F87171' : '#34D399'
+                                    }}>
+                                        {remainingCredits === 0 ? '0 Credits (Exhausted)' : `${remainingCredits} Claim${remainingCredits > 1 ? 's' : ''} Left`}
+                                    </span>
+                                </div>
+                            </div>
+                        )}
+
                         {/* Cafe Details Card */}
                         <div className="card" style={{ textAlign: 'left', padding: '24px 20px' }}>
                             <div style={{ fontSize: '11px', color: 'var(--color-accent)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Welcome To</div>
@@ -631,7 +696,7 @@ export default function CustomerEntry() {
                             ) : (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                                     {coupons.map((coupon) => {
-                                        const isExhausted = coupon.remaining_uses !== undefined && coupon.remaining_uses <= 0;
+                                        const isExhausted = (coupon.remaining_uses !== undefined && coupon.remaining_uses <= 0) || remainingCredits === 0;
                                         return (
                                             <div
                                                 key={coupon.id}
@@ -717,13 +782,20 @@ export default function CustomerEntry() {
                             </div>
                         )}
 
+                        {remainingCredits === 0 && (
+                            <div style={{ padding: '12px 16px', borderRadius: '10px', backgroundColor: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#F87171', fontSize: '13px', textAlign: 'center', fontWeight: '500' }}>
+                                ⚠️ You have exhausted your maximum limit of 3 coupon claims. You cannot redeem any more coupons.
+                            </div>
+                        )}
+
                         {/* Submit Button */}
                         <button
                             type="submit"
                             className={`btn btn-primary`}
                             style={{ height: '52px', marginTop: '8px' }}
+                            disabled={remainingCredits === 0}
                         >
-                            Verify & Lock Discount
+                            {remainingCredits === 0 ? 'Credits Limit Exhausted' : 'Verify & Lock Discount'}
                         </button>
                         <div style={{ height: '30px' }}></div>
                     </form>
