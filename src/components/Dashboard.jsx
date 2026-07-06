@@ -25,6 +25,7 @@ export default function Dashboard({ cafe, token, onLogout, onUpdateCafe }) {
     const [discountType, setDiscountType] = useState('percent');
     const [discountValue, setDiscountValue] = useState('');
     const [frequency, setFrequency] = useState('1');
+    const [minBillAmount, setMinBillAmount] = useState('');
     const [couponLoading, setCouponLoading] = useState(false);
 
     // Fetch Cafe coupons list
@@ -86,7 +87,8 @@ export default function Dashboard({ cafe, token, onLogout, onUpdateCafe }) {
                     badge_label: couponBadge,
                     discount_type: discountType,
                     discount_value: parseFloat(discountValue),
-                    max_uses: parseInt(frequency)
+                    max_uses: parseInt(frequency),
+                    min_bill_amount: minBillAmount ? parseFloat(minBillAmount) : 0
                 })
             });
 
@@ -105,6 +107,7 @@ export default function Dashboard({ cafe, token, onLogout, onUpdateCafe }) {
             setDiscountType('percent');
             setDiscountValue('');
             setFrequency('1');
+            setMinBillAmount('');
 
             // Refresh coupons list
             await fetchCoupons();
@@ -542,7 +545,7 @@ export default function Dashboard({ cafe, token, onLogout, onUpdateCafe }) {
                                         </div>
                                     </div>
 
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
                                         <div className="form-group">
                                             <label className="form-label">Discount Value</label>
                                             <input
@@ -557,7 +560,7 @@ export default function Dashboard({ cafe, token, onLogout, onUpdateCafe }) {
                                         </div>
 
                                         <div className="form-group">
-                                            <label className="form-label">Total Usage Limit</label>
+                                            <label className="form-label">Usage Limit</label>
                                             <input
                                                 type="number"
                                                 className="form-input"
@@ -566,6 +569,19 @@ export default function Dashboard({ cafe, token, onLogout, onUpdateCafe }) {
                                                 placeholder="e.g. 100"
                                                 min="1"
                                                 required
+                                            />
+                                        </div>
+
+                                        <div className="form-group">
+                                            <label className="form-label">Min Spend (₹)</label>
+                                            <input
+                                                type="number"
+                                                className="form-input"
+                                                value={minBillAmount}
+                                                onChange={(e) => setMinBillAmount(e.target.value)}
+                                                placeholder="e.g. 0"
+                                                min="0"
+                                                step="0.01"
                                             />
                                         </div>
                                     </div>
@@ -617,8 +633,15 @@ export default function Dashboard({ cafe, token, onLogout, onUpdateCafe }) {
                                                 <h4 style={{ fontSize: '16px', margin: '4px 0', color: '#fff' }}>{coupon.title}</h4>
                                                 <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: '4px 0 12px 0' }}>{coupon.desc_text}</p>
 
-                                                <div style={{ fontSize: '12px', background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-color)', display: 'inline-block', padding: '6px 12px', borderRadius: '6px', color: 'var(--text-secondary)' }}>
-                                                    Rule: <strong style={{ color: '#fff' }}>{coupon.discount_type === 'percent' ? `${coupon.discount_value}% Off` : `₹${coupon.discount_value} Off`}</strong>
+                                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                                    <div style={{ fontSize: '12px', background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-color)', display: 'inline-block', padding: '6px 12px', borderRadius: '6px', color: 'var(--text-secondary)' }}>
+                                                        Rule: <strong style={{ color: '#fff' }}>{coupon.discount_type === 'percent' ? `${coupon.discount_value}% Off` : `₹${coupon.discount_value} Off`}</strong>
+                                                    </div>
+                                                    {parseFloat(coupon.min_bill_amount || 0) > 0 && (
+                                                        <div style={{ fontSize: '12px', background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.2)', display: 'inline-block', padding: '6px 12px', borderRadius: '6px', color: '#F87171' }}>
+                                                            Min Spend: <strong style={{ color: '#fff' }}>₹{parseFloat(coupon.min_bill_amount).toFixed(2)}</strong>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         );

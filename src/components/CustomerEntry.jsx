@@ -48,6 +48,17 @@ export default function CustomerEntry() {
     const [couponOtp, setCouponOtp] = useState('');
     const [isCouponOtpSent, setIsCouponOtpSent] = useState(false);
     const [couponOtpLoading, setCouponOtpLoading] = useState(false);
+
+    // Auto-deselect coupon if bill amount drops below its min spend requirement
+    useEffect(() => {
+        if (selectedCoupon && billAmount) {
+            const bill = parseFloat(billAmount);
+            const minBill = parseFloat(selectedCoupon.min_bill_amount || 0);
+            if (!isNaN(bill) && bill < minBill) {
+                setSelectedCoupon(null);
+            }
+        }
+    }, [billAmount, selectedCoupon]);
     const [couponOtpError, setCouponOtpError] = useState('');
     const [couponVerified, setCouponVerified] = useState(false);
 
@@ -305,6 +316,11 @@ export default function CustomerEntry() {
     const getDiscountedAmount = () => {
         if (!selectedCoupon || !billAmount) return 0;
         const bill = parseFloat(billAmount);
+
+        // Check minimum bill amount cap
+        const minBill = parseFloat(selectedCoupon.min_bill_amount || 0);
+        if (bill < minBill) return 0;
+
         if (selectedCoupon.discount_type === 'percent') {
             return (bill * parseFloat(selectedCoupon.discount_value)) / 100;
         } else {
@@ -696,22 +712,26 @@ export default function CustomerEntry() {
                             ) : (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                                     {coupons.map((coupon) => {
+                                        const minBill = parseFloat(coupon.min_bill_amount || 0);
+                                        const isBelowMin = minBill > 0 && (!billAmount || parseFloat(billAmount) < minBill);
                                         const isExhausted = (coupon.remaining_uses !== undefined && coupon.remaining_uses <= 0) || remainingCredits === 0;
+                                        const isCouponDisabled = isExhausted || isBelowMin;
+
                                         return (
                                             <div
                                                 key={coupon.id}
                                                 onClick={() => {
-                                                    if (!isExhausted) {
+                                                    if (!isCouponDisabled) {
                                                         setSelectedCoupon(coupon);
                                                     }
                                                 }}
                                                 className={`card`}
                                                 style={{
                                                     padding: '16px',
-                                                    cursor: isExhausted ? 'not-allowed' : 'pointer',
-                                                    opacity: isExhausted ? 0.55 : 1,
-                                                    borderColor: selectedCoupon?.id === coupon.id ? 'var(--color-accent)' : 'var(--border-color)',
-                                                    background: selectedCoupon?.id === coupon.id ? 'rgba(139, 92, 246, 0.05)' : 'var(--bg-card)'
+                                                    cursor: isCouponDisabled ? 'not-allowed' : 'pointer',
+                                                    opacity: isCouponDisabled ? 0.55 : 1,
+                                                    borderColor: selectedCoupon?.id === coupon.id && !isCouponDisabled ? 'var(--color-accent)' : 'var(--border-color)',
+                                                    background: selectedCoupon?.id === coupon.id && !isCouponDisabled ? 'rgba(139, 92, 246, 0.05)' : 'var(--bg-card)'
                                                 }}
                                             >
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -741,10 +761,10 @@ export default function CustomerEntry() {
                                                     <input
                                                         type="radio"
                                                         name="selected_coupon"
-                                                        disabled={isExhausted}
-                                                        checked={selectedCoupon?.id === coupon.id && !isExhausted}
+                                                        disabled={isCouponDisabled}
+                                                        checked={selectedCoupon?.id === coupon.id && !isCouponDisabled}
                                                         onChange={() => {
-                                                            if (!isExhausted) {
+                                                            if (!isCouponDisabled) {
                                                                 setSelectedCoupon(coupon);
                                                             }
                                                         }}
@@ -754,8 +774,25 @@ export default function CustomerEntry() {
 
                                                 <h4 style={{ fontSize: '16px', margin: '10px 0 4px 0', color: '#fff' }}>{coupon.title}</h4>
                                                 <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: '0 0 10px 0' }}>{coupon.desc_text}</p>
-                                                <div style={{ fontSize: '12px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)', display: 'inline-block', padding: '4px 10px', borderRadius: '6px', color: 'var(--text-secondary)' }}>
-                                                    Discount: <strong style={{ color: '#fff' }}>{coupon.discount_type === 'percent' ? `${coupon.discount_value}% Off` : `₹${coupon.discount_value} Off`}</strong>
+                                                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                                                    <div style={{ fontSize: '12px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)', display: 'inline-block', padding: '4px 10px', borderRadius: '6px', color: 'var(--text-secondary)' }}>
+                                                        Discount: <strong style={{ color: '#fff' }}>{coupon.discount_type === 'percent' ? `${coupon.discount_value}% Off` : `₹${coupon.discount_value} Off`}</strong>
+                                                    </div>
+                                                    {parseFloat(coupon.min_bill_amount || 0) > 0 && (
+                                                        <div style={{
+                                                            fontSize: '11px',
+                                                            background: isBelowMin ? 'rgba(239, 68, 68, 0.08)' : 'rgba(255,255,255,0.02)',
+                                                            border: isBelowMin ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid var(--border-color)',
+                                                            display: 'inline-flex',
+                                                            alignItems: 'center',
+                                                            gap: '4px',
+                                                            padding: '4px 10px',
+                                                            borderRadius: '6px',
+                                                            color: isBelowMin ? '#F87171' : 'var(--text-secondary)'
+                                                        }}>
+                                                            <span>ⓘ Min Spend: <strong>₹{parseFloat(coupon.min_bill_amount).toFixed(2)}</strong> {isBelowMin && <span style={{ fontSize: '9px', fontWeight: 'bold' }}>(Need more)</span>}</span>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         );
@@ -792,10 +829,13 @@ export default function CustomerEntry() {
                         <button
                             type="submit"
                             className={`btn btn-primary`}
-                            style={{ height: '52px', marginTop: '8px' }}
-                            disabled={remainingCredits === 0}
+                            style={{ height: '52px', marginTop: '12px' }}
+                            disabled={remainingCredits === 0 || !selectedCoupon}
                         >
-                            {remainingCredits === 0 ? 'Credits Limit Exhausted' : 'Verify & Lock Discount'}
+                            {remainingCredits === 0
+                                ? 'Credits Limit Exhausted'
+                                : 'Verify & Lock Discount'
+                            }
                         </button>
                         <div style={{ height: '30px' }}></div>
                     </form>
