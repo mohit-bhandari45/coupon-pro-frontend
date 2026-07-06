@@ -79,7 +79,7 @@ export default function AuthPage({ onAuthSuccess }) {
                         style={{ background: 'none', border: 'none', cursor: 'pointer' }}
                     >
                         <div className="nav-logo-icon">☕</div>
-                        <span>CafeLoyalty</span>
+                        <span>RedPerks</span>
                     </button>
                 </div>
             </div>

@@ -511,7 +511,7 @@ export default function CustomerEntry() {
 
                         {cafe?.upi_id && (
                             <a
-                                href={`upi://pay?pa=${cafe.upi_id}&pn=${encodeURIComponent(cafe.name)}&am=${getPayableAmount()}&cu=INR&tn=Cafe%20Loyalty%20Payment`}
+                                href={`upi://pay?pa=${cafe.upi_id}&pn=${encodeURIComponent(cafe.name)}&am=${getPayableAmount()}&cu=INR&tn=RedPerks%20Payment`}
                                 className="btn btn-primary"
                                 style={{ width: '100%', height: '48px', marginBottom: '12px', display: 'flex', justifyContent: 'center', alignItems: 'center', textDecoration: 'none', background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)', border: 'none' }}
                             >

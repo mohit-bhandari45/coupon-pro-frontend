@@ -13,7 +13,7 @@ export default function LandingPage() {
                 <div className="container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div className="nav-brand">
                         <div className="nav-logo-icon">☕</div>
-                        <span>CafeLoyalty</span>
+                        <span>RedPerks</span>
                     </div>
 
                     <div className="flex-btn-group">
@@ -103,7 +103,7 @@ export default function LandingPage() {
             <footer style={{ borderTop: '1px solid var(--border-color)', padding: '40px 0', textAlign: 'center', marginTop: '60px' }}>
                 <div className="container">
                     <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>
-                        &copy; 2026 CafeLoyalty. Designed for modern community dining.
+                        &copy; 2026 RedPerks. Designed for modern community dining.
                     </p>
                 </div>
             </footer>
