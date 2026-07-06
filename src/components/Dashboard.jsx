@@ -158,6 +158,17 @@ export default function Dashboard({ cafe, token, onLogout, onUpdateCafe }) {
         return `${window.location.origin}/${cafe.slug}`;
     };
 
+    const formatDate = (isoString) => {
+        if (!isoString) return '';
+        try {
+            const date = new Date(isoString);
+            return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' ' +
+                date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: true });
+        } catch (e) {
+            return isoString;
+        }
+    };
+
     // Calculate loyalty statistics dynamically from actual transactions
     const totalClaims = transactions.filter(t => t.coupon_id).length;
     const totalVisits = transactions.length;
@@ -316,18 +327,78 @@ export default function Dashboard({ cafe, token, onLogout, onUpdateCafe }) {
                                 </div>
                             </div>
 
-                            {/* Coupons & Transaction placeholder */}
+                            {/* Coupons & Transaction lists */}
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '30px' }}>
-                                <div className="card" style={{ textAlign: 'left' }}>
+                                <div className="card" style={{ textAlign: 'left', display: 'flex', flexDirection: 'column', height: '400px' }}>
                                     <h3 style={{ fontSize: '18px', marginBottom: '16px' }}>Active Loyalty Coupons</h3>
-                                    <div style={{ color: 'var(--text-muted)', fontSize: '14px', padding: '24px 0', textAlign: 'center' }}>
-                                        🔑 Coupons management will be visible once Customer Flow is implemented.
+                                    <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', paddingRight: '4px' }}>
+                                        {coupons.length === 0 ? (
+                                            <div style={{ color: 'var(--text-muted)', fontSize: '14px', padding: '48px 0', textAlign: 'center' }}>
+                                                🔑 No active coupons created yet.
+                                            </div>
+                                        ) : (
+                                            coupons.map((coupon) => {
+                                                const total = coupon.max_uses ?? coupon.frequency_per_day ?? 1;
+                                                const remaining = coupon.remaining_uses !== undefined ? coupon.remaining_uses : total;
+                                                const claimed = Math.max(0, total - remaining);
+                                                return (
+                                                    <div key={coupon.id} style={{ padding: '12px', background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--border-color)', borderRadius: '10px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                            <strong style={{ color: '#fff', fontSize: '14px' }}>{coupon.title}</strong>
+                                                            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                                                                {claimed} / {total} Claimed
+                                                            </span>
+                                                        </div>
+                                                        <p style={{ color: 'var(--text-secondary)', fontSize: '12px', margin: 0 }}>{coupon.desc_text}</p>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px' }}>
+                                                            <span style={{ fontSize: '11px', color: '#34D399', fontWeight: 600 }}>
+                                                                {coupon.discount_type === 'percent' ? `${coupon.discount_value}% Off` : `₹${coupon.discount_value} Off`}
+                                                            </span>
+                                                            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                                                                {remaining} remaining
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })
+                                        )}
                                     </div>
                                 </div>
-                                <div className="card" style={{ textAlign: 'left' }}>
+                                <div className="card" style={{ textAlign: 'left', display: 'flex', flexDirection: 'column', height: '400px' }}>
                                     <h3 style={{ fontSize: '18px', marginBottom: '16px' }}>Recent Reconciled Transactions</h3>
-                                    <div style={{ color: 'var(--text-muted)', fontSize: '14px', padding: '24px 0', textAlign: 'center' }}>
-                                        📈 Reconciliations will populate when customers submit payments.
+                                    <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', paddingRight: '4px' }}>
+                                        {transactions.length === 0 ? (
+                                            <div style={{ color: 'var(--text-muted)', fontSize: '14px', padding: '48px 0', textAlign: 'center' }}>
+                                                📈 No coupon redemptions recorded yet.
+                                            </div>
+                                        ) : (
+                                            [...transactions].reverse().map((txn) => {
+                                                const couponTitle = txn.coupons?.title || (coupons.find(c => c.id === txn.coupon_id)?.title) || 'Loyalty Discount';
+                                                const userName = txn.users?.name || 'Customer';
+                                                const userEmail = txn.users?.email || '';
+                                                return (
+                                                    <div key={txn.id} style={{ padding: '12px', background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--border-color)', borderRadius: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                            <div>
+                                                                <strong style={{ color: '#fff', fontSize: '14px' }}>{userName}</strong>
+                                                                {userEmail && <span style={{ color: 'var(--text-muted)', fontSize: '12px', marginLeft: '6px' }}>({userEmail})</span>}
+                                                            </div>
+                                                            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                                                                {formatDate(txn.created_at)}
+                                                            </span>
+                                                        </div>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px' }}>
+                                                            <span style={{ background: 'rgba(139, 92, 246, 0.08)', color: '#C084FC', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 600 }}>
+                                                                🏷️ {couponTitle}
+                                                            </span>
+                                                            <span style={{ color: 'var(--text-secondary)' }}>
+                                                                Paid <strong style={{ color: '#10B981' }}>₹{txn.payable_amount.toFixed(2)}</strong> (Saved ₹{txn.discount_amount.toFixed(2)})
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })
+                                        )}
                                     </div>
                                 </div>
                             </div>
