@@ -26,13 +26,20 @@ export default function Dashboard({ cafe, token, onLogout, onUpdateCafe }) {
     const [discountValue, setDiscountValue] = useState('');
     const [frequency, setFrequency] = useState('1');
     const [minBillAmount, setMinBillAmount] = useState('');
+    const [couponFilterTab, setCouponFilterTab] = useState('active'); // 'active' or 'archived'
+    const [togglingCouponId, setTogglingCouponId] = useState(null);
+    const [hoveredBtnId, setHoveredBtnId] = useState(null);
     const [couponLoading, setCouponLoading] = useState(false);
 
     // Fetch Cafe coupons list
     const fetchCoupons = async () => {
         if (!cafe?.slug) return;
         try {
-            const res = await fetch(`${API_BASE_URL}/api/cafe/${cafe.slug}`);
+            const res = await fetch(`${API_BASE_URL}/api/cafe/coupons`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
             const data = await res.json();
             if (data.success) {
                 setCoupons(data.coupons || []);
@@ -116,6 +123,31 @@ export default function Dashboard({ cafe, token, onLogout, onUpdateCafe }) {
             setErrorMsg(err.message || 'Error occurred while creating coupon');
         } finally {
             setCouponLoading(false);
+        }
+    };
+
+    const handleToggleActive = async (couponId, currentStatus) => {
+        setTogglingCouponId(couponId);
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/cafe/coupons/${couponId}/toggle-active`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ is_active: !currentStatus })
+            });
+            const data = await res.json();
+            if (data.success) {
+                await fetchCoupons();
+            } else {
+                setErrorMsg(data.message || 'Failed to toggle status');
+            }
+        } catch (err) {
+            console.error('Error toggling coupon active status:', err);
+            setErrorMsg('Network error toggling status');
+        } finally {
+            setTogglingCouponId(null);
         }
     };
 
@@ -599,53 +631,129 @@ export default function Dashboard({ cafe, token, onLogout, onUpdateCafe }) {
 
                             {/* Right: Existing List */}
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                                <h3 style={{ margin: 0, paddingLeft: '4px' }}>Active Loyalty Codes ({coupons.length})</h3>
-                                {coupons.length === 0 ? (
+                                <div style={{ display: 'flex', borderBottom: '1px solid var(--border-color)', margin: 0, paddingBottom: '4px', gap: '16px' }}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setCouponFilterTab('active')}
+                                        style={{
+                                            background: 'transparent',
+                                            border: 'none',
+                                            color: couponFilterTab === 'active' ? 'var(--color-accent)' : 'var(--text-muted)',
+                                            fontWeight: 600,
+                                            fontSize: '15px',
+                                            cursor: 'pointer',
+                                            outline: 'none',
+                                            paddingBottom: '6px',
+                                            borderBottom: couponFilterTab === 'active' ? '2px solid var(--color-accent)' : 'none'
+                                        }}
+                                    >
+                                        Active Rules ({coupons.filter(c => c.is_active !== false).length})
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setCouponFilterTab('archived')}
+                                        style={{
+                                            background: 'transparent',
+                                            border: 'none',
+                                            color: couponFilterTab === 'archived' ? 'var(--color-accent)' : 'var(--text-muted)',
+                                            fontWeight: 600,
+                                            fontSize: '15px',
+                                            cursor: 'pointer',
+                                            outline: 'none',
+                                            paddingBottom: '6px',
+                                            borderBottom: couponFilterTab === 'archived' ? '2px solid var(--color-accent)' : 'none'
+                                        }}
+                                    >
+                                        Archived ({coupons.filter(c => c.is_active === false).length})
+                                    </button>
+                                </div>
+
+                                {coupons.filter(c => couponFilterTab === 'active' ? c.is_active !== false : c.is_active === false).length === 0 ? (
                                     <div className="card" style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                                        No coupons created yet. Use the editor to add your first deal!
+                                        {couponFilterTab === 'active' ? 'No active coupons created yet.' : 'No archived coupons.'}
                                     </div>
                                 ) : (
-                                    coupons.map((coupon) => {
-                                        const total = coupon.max_uses ?? coupon.frequency_per_day ?? 1;
-                                        const remaining = coupon.remaining_uses !== undefined ? coupon.remaining_uses : total;
-                                        const claimed = Math.max(0, total - remaining);
-                                        return (
-                                            <div key={coupon.id} className="card" style={{ padding: '20px', borderLeft: '3px solid var(--color-accent)' }}>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                                                    <span
-                                                        style={{
-                                                            background: coupon.badge_label === 'Save' ? 'rgba(139, 92, 246, 0.1)' : 'rgba(16, 185, 129, 0.1)',
-                                                            border: coupon.badge_label === 'Save' ? '1px solid rgba(139, 92, 246, 0.3)' : '1px solid rgba(16, 185, 129, 0.3)',
-                                                            color: coupon.badge_label === 'Save' ? '#C084FC' : '#34D399',
-                                                            padding: '2px 8px',
-                                                            borderRadius: '100px',
-                                                            fontSize: '10px',
-                                                            fontWeight: 600,
-                                                            textTransform: 'uppercase'
-                                                        }}
-                                                    >
-                                                        {coupon.badge_label}
-                                                    </span>
-                                                    <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                                                        Claimed: {claimed} / {total} ({remaining} remaining)
-                                                    </span>
-                                                </div>
-                                                <h4 style={{ fontSize: '16px', margin: '4px 0', color: '#fff' }}>{coupon.title}</h4>
-                                                <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: '4px 0 12px 0' }}>{coupon.desc_text}</p>
-
-                                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                                    <div style={{ fontSize: '12px', background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-color)', display: 'inline-block', padding: '6px 12px', borderRadius: '6px', color: 'var(--text-secondary)' }}>
-                                                        Rule: <strong style={{ color: '#fff' }}>{coupon.discount_type === 'percent' ? `${coupon.discount_value}% Off` : `₹${coupon.discount_value} Off`}</strong>
+                                    coupons
+                                        .filter(c => couponFilterTab === 'active' ? c.is_active !== false : c.is_active === false)
+                                        .map((coupon) => {
+                                            const total = coupon.max_uses ?? coupon.frequency_per_day ?? 1;
+                                            const remaining = coupon.remaining_uses !== undefined ? coupon.remaining_uses : total;
+                                            const claimed = Math.max(0, total - remaining);
+                                            return (
+                                                <div key={coupon.id} className="card" style={{ padding: '20px', borderLeft: coupon.is_active !== false ? '3px solid var(--color-accent)' : '3px solid var(--text-muted)', opacity: coupon.is_active !== false ? 1 : 0.75 }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                                        <span
+                                                            style={{
+                                                                background: coupon.badge_label === 'Save' ? 'rgba(139, 92, 246, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                                                                border: coupon.badge_label === 'Save' ? '1px solid rgba(139, 92, 246, 0.3)' : '1px solid rgba(16, 185, 129, 0.3)',
+                                                                color: coupon.badge_label === 'Save' ? '#C084FC' : '#34D399',
+                                                                padding: '2px 8px',
+                                                                borderRadius: '100px',
+                                                                fontSize: '10px',
+                                                                fontWeight: 600,
+                                                                textTransform: 'uppercase'
+                                                            }}
+                                                        >
+                                                            {coupon.badge_label}
+                                                        </span>
+                                                        <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                                                            Claimed: {claimed} / {total} ({remaining} remaining)
+                                                        </span>
                                                     </div>
-                                                    {parseFloat(coupon.min_bill_amount || 0) > 0 && (
-                                                        <div style={{ fontSize: '12px', background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.2)', display: 'inline-block', padding: '6px 12px', borderRadius: '6px', color: '#F87171' }}>
-                                                            Min Spend: <strong style={{ color: '#fff' }}>₹{parseFloat(coupon.min_bill_amount).toFixed(2)}</strong>
+                                                    <h4 style={{ fontSize: '16px', margin: '4px 0', color: '#fff' }}>{coupon.title}</h4>
+                                                    <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: '4px 0 12px 0' }}>{coupon.desc_text}</p>
+
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px', paddingTop: '10px', borderTop: '1px solid rgba(255,255,255,0.03)' }}>
+                                                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                                            <div style={{ fontSize: '12px', background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-color)', display: 'inline-block', padding: '6px 12px', borderRadius: '6px', color: 'var(--text-secondary)' }}>
+                                                                Rule: <strong style={{ color: '#fff' }}>{coupon.discount_type === 'percent' ? `${coupon.discount_value}% Off` : `₹${coupon.discount_value} Off`}</strong>
+                                                            </div>
+                                                            {parseFloat(coupon.min_bill_amount || 0) > 0 && (
+                                                                <div style={{ fontSize: '12px', background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.2)', display: 'inline-block', padding: '6px 12px', borderRadius: '6px', color: '#F87171' }}>
+                                                                    Min Spend: <strong style={{ color: '#fff' }}>₹{parseFloat(coupon.min_bill_amount).toFixed(2)}</strong>
+                                                                </div>
+                                                            )}
                                                         </div>
-                                                    )}
+                                                        <button
+                                                            type="button"
+                                                            disabled={togglingCouponId === coupon.id}
+                                                            onClick={() => handleToggleActive(coupon.id, coupon.is_active !== false)}
+                                                            onMouseEnter={() => setHoveredBtnId(coupon.id)}
+                                                            onMouseLeave={() => setHoveredBtnId(null)}
+                                                            style={{
+                                                                fontSize: '11px',
+                                                                padding: '6px 12px',
+                                                                borderRadius: '6px',
+                                                                background: togglingCouponId === coupon.id
+                                                                    ? 'rgba(255,255,255,0.05)'
+                                                                    : (coupon.is_active !== false
+                                                                        ? (hoveredBtnId === coupon.id ? '#EF4444' : 'rgba(239, 68, 68, 0.08)')
+                                                                        : (hoveredBtnId === coupon.id ? '#10B981' : 'rgba(16, 185, 129, 0.08)')
+                                                                    ),
+                                                                border: coupon.is_active !== false
+                                                                    ? '1px solid rgba(239, 68, 68, 0.2)'
+                                                                    : '1px solid rgba(16, 185, 129, 0.2)',
+                                                                color: togglingCouponId === coupon.id
+                                                                    ? 'var(--text-muted)'
+                                                                    : (hoveredBtnId === coupon.id
+                                                                        ? '#fff'
+                                                                        : (coupon.is_active !== false ? '#F87171' : '#34D399')
+                                                                    ),
+                                                                cursor: togglingCouponId === coupon.id ? 'not-allowed' : 'pointer',
+                                                                outline: 'none',
+                                                                fontWeight: 600,
+                                                                transition: 'all 0.15s ease'
+                                                            }}
+                                                        >
+                                                            {togglingCouponId === coupon.id
+                                                                ? (coupon.is_active !== false ? 'Archiving...' : 'Restoring...')
+                                                                : (coupon.is_active !== false ? 'Archive' : 'Restore')
+                                                            }
+                                                        </button>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        );
-                                    })
+                                            );
+                                        })
                                 )}
                             </div>
                         </div>
