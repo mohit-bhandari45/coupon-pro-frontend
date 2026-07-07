@@ -49,6 +49,12 @@ export default function CustomerEntry() {
     const [isCouponOtpSent, setIsCouponOtpSent] = useState(false);
     const [couponOtpLoading, setCouponOtpLoading] = useState(false);
 
+    // Promo Code States
+    const [promoCode, setPromoCode] = useState('');
+    const [appliedPromo, setAppliedPromo] = useState(null);
+    const [isPromoLoading, setIsPromoLoading] = useState(false);
+    const [promoError, setPromoError] = useState('');
+
     // Auto-deselect coupon if bill amount drops below its min spend requirement
     useEffect(() => {
         if (selectedCoupon && billAmount) {
@@ -56,11 +62,61 @@ export default function CustomerEntry() {
             const minBill = parseFloat(selectedCoupon.min_bill_amount || 0);
             if (!isNaN(bill) && bill < minBill) {
                 setSelectedCoupon(null);
+                if (appliedPromo) {
+                    setAppliedPromo(null);
+                    setPromoCode('');
+                }
             }
         }
-    }, [billAmount, selectedCoupon]);
+    }, [billAmount, selectedCoupon, appliedPromo]);
+
     const [couponOtpError, setCouponOtpError] = useState('');
     const [couponVerified, setCouponVerified] = useState(false);
+
+    const handleApplyPromoCode = async (e) => {
+        e.preventDefault();
+        if (!promoCode.trim()) {
+            setPromoError('Please enter a promo code');
+            return;
+        }
+        setIsPromoLoading(true);
+        setPromoError('');
+
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/coupon/apply-code`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    code: promoCode.trim().toUpperCase(),
+                    email: customerUser?.email,
+                    billAmount: parseFloat(billAmount),
+                    cafeSlug: slug
+                })
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                setAppliedPromo(data.coupon);
+                setSelectedCoupon(data.coupon);
+                setPromoError('');
+            } else {
+                setPromoError(data.message || 'Invalid promo code');
+            }
+        } catch (err) {
+            setPromoError('Connection to server failed');
+        } finally {
+            setIsPromoLoading(false);
+        }
+    };
+
+    const handleRemovePromoCode = () => {
+        setAppliedPromo(null);
+        setSelectedCoupon(null);
+        setPromoCode('');
+        setPromoError('');
+    };
 
     // Transaction outcome states
     const [transactionSuccess, setTransactionSuccess] = useState(false);
@@ -172,6 +228,9 @@ export default function CustomerEntry() {
         setTransactionResult(null);
         setTransactionError('');
         setCouponOtpError('');
+        setPromoCode('');
+        setAppliedPromo(null);
+        setPromoError('');
 
         // Refresh cafe coupons to get updated daily frequency counts!
         fetch(`${API_BASE_URL}/api/cafe/${slug}`)
@@ -699,13 +758,61 @@ export default function CustomerEntry() {
                             </div>
                         </div>
 
+                        {/* Promo Code Input Card */}
+                        <div className="card" style={{ padding: '20px', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                            <label className="form-label" style={{ fontSize: '14px', marginBottom: 0 }}>Have a Promo/Coupon Code?</label>
+                            {!appliedPromo ? (
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                    <input
+                                        type="text"
+                                        className="form-input"
+                                        style={{ flexGrow: 1, textTransform: 'uppercase' }}
+                                        placeholder="e.g. WELCOME50"
+                                        value={promoCode}
+                                        onChange={(e) => setPromoCode(e.target.value)}
+                                        disabled={!billAmount || isNaN(billAmount) || parseFloat(billAmount) <= 0}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={handleApplyPromoCode}
+                                        className="btn btn-secondary"
+                                        style={{ padding: '0 16px', margin: 0, height: '44px', width: 'auto', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
+                                        disabled={isPromoLoading || !billAmount || isNaN(billAmount) || parseFloat(billAmount) <= 0}
+                                    >
+                                        {isPromoLoading ? '...' : 'Apply'}
+                                    </button>
+                                </div>
+                            ) : (
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(16, 185, 129, 0.05)', padding: '10px 14px', borderRadius: '10px', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+                                    <div>
+                                        <span style={{ fontSize: '11px', color: '#10b981', fontWeight: 600, display: 'block', textTransform: 'uppercase' }}>Promo Code Applied</span>
+                                        <strong style={{ fontSize: '15px', color: '#fff' }}>{appliedPromo.id}</strong>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={handleRemovePromoCode}
+                                        style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}
+                                    >
+                                        Remove
+                                    </button>
+                                </div>
+                            )}
+                            {promoError && (
+                                <span style={{ color: '#F87171', fontSize: '12px' }}>⚠️ {promoError}</span>
+                            )}
+                        </div>
+
                         {/* Coupons Selection List */}
                         <div style={{ textAlign: 'left' }}>
                             <h3 style={{ fontSize: '16px', marginBottom: '12px', fontWeight: 600, color: '#fff', paddingLeft: '8px' }}>
                                 Select 1 Loyalty Coupon
                             </h3>
 
-                            {coupons.length === 0 ? (
+                            {appliedPromo ? (
+                                <div className="card" style={{ padding: '20px', textAlign: 'center', color: '#FCD34D', fontSize: '13px', background: 'rgba(251, 191, 36, 0.02)', borderColor: 'rgba(251, 191, 36, 0.2)', lineHeight: '1.5' }}>
+                                    ✨ <strong>Promo Code applied ({appliedPromo.id})</strong>. The cafe's public loyalty rewards list is hidden. Remove the promo code to view public loyalty rewards.
+                                </div>
+                            ) : coupons.length === 0 ? (
                                 <div className="card" style={{ padding: '20px', textAlignment: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
                                     No coupons configured for this store yet.
                                 </div>

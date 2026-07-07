@@ -4,6 +4,7 @@ import LandingPage from './components/LandingPage';
 import Dashboard from './components/Dashboard';
 import AuthPage from './components/AuthPage';
 import CustomerEntry from './components/CustomerEntry';
+import AdminDashboard from './components/AdminDashboard';
 import { API_BASE_URL } from './config';
 
 function App() {
@@ -85,6 +86,11 @@ function App() {
               onUpdateCafe={handleUpdateCafe}
             />
           }
+        />
+
+        <Route
+          path="/admin"
+          element={<AdminDashboard />}
         />
 
         <Route
