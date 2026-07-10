@@ -126,64 +126,7 @@ export default function CustomerEntry() {
     const [transactionError, setTransactionError] = useState('');
     const [transactionResult, setTransactionResult] = useState(null);
 
-    const handleSendCouponOtp = async () => {
-        setCouponOtpLoading(true);
-        setCouponOtpError('');
 
-        try {
-            const res = await fetch(`${API_BASE_URL}/api/coupon/send-otp`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    email: customerUser.email,
-                    coupon_id: selectedCoupon.id
-                })
-            });
-
-            const data = await res.json();
-            if (data.success) {
-                setIsCouponOtpSent(true);
-            } else {
-                setCouponOtpError(data.message || 'Failed to send coupon OTP');
-            }
-        } catch (err) {
-            setCouponOtpError('Connection error to backend');
-        } finally {
-            setCouponOtpLoading(false);
-        }
-    };
-
-    const handleVerifyCouponOtp = async (e) => {
-        e.preventDefault();
-        setCouponOtpLoading(true);
-        setCouponOtpError('');
-
-        try {
-            const res = await fetch(`${API_BASE_URL}/api/coupon/verify-otp`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    email: customerUser.email,
-                    code: couponOtp
-                })
-            });
-
-            const data = await res.json();
-            if (data.success) {
-                setCouponVerified(true);
-            } else {
-                setCouponOtpError(data.message || 'Verification code failed');
-            }
-        } catch (err) {
-            setCouponOtpError('Connection error to backend');
-        } finally {
-            setCouponOtpLoading(false);
-        }
-    };
 
     const handleCreateTransaction = async () => {
         setTransactionLoading(true);
@@ -468,7 +411,7 @@ export default function CustomerEntry() {
             return;
         }
 
-        setClaimSuccess(true);
+        setCouponVerified(true);
     };
 
     const getDiscountedAmount = () => {
@@ -836,90 +779,6 @@ export default function CustomerEntry() {
                             disabled={transactionLoading}
                         >
                             Cancel & Clear
-                        </button>
-                    </div>
-                ) : claimSuccess ? (
-                    /* COUPON REDEMPTION OTP SCREEN */
-                    <div className="card" style={{ padding: '32px 24px', textAlign: 'center', animation: 'fadeIn 0.3s ease' }}>
-                        <div style={{ fontSize: '48px', marginBottom: '16px' }}>🔑</div>
-                        <h2 style={{ fontSize: '24px', color: '#fff', marginBottom: '12px', fontWeight: 700 }}>Verification Required</h2>
-                        <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '24px', lineHeight: '1.5' }}>
-                            {isCouponOtpSent
-                                ? `We've sent a 6-digit redemption code to ${customerUser?.email}. Enter it below to lock in your discount.`
-                                : `Verify your email address to receive your redemption code and apply the ${selectedCoupon?.title} discount.`
-                            }
-                        </p>
-
-                        <div style={{ background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', marginBottom: '24px', textAlign: 'left' }}>
-                            <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Bill Amount:</div>
-                            <div style={{ fontSize: '18px', fontWeight: 700, color: '#fff' }}>₹{parseFloat(billAmount).toFixed(2)}</div>
-                            <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '8px' }}>Final Payable:</div>
-                            <div style={{ fontSize: '22px', fontWeight: 800, color: '#34D399' }}>₹{getPayableAmount()}</div>
-                        </div>
-
-                        {couponOtpError && (
-                            <div style={{ padding: '10px', borderRadius: '8px', backgroundColor: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#F87171', fontSize: '13px', marginBottom: '16px', textAlign: 'left' }}>
-                                ⚠️ {couponOtpError}
-                            </div>
-                        )}
-
-                        {!isCouponOtpSent ? (
-                            <button
-                                onClick={handleSendCouponOtp}
-                                className="btn btn-primary"
-                                style={{ width: '100%', height: '48px', marginBottom: '12px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
-                                disabled={couponOtpLoading}
-                            >
-                                {couponOtpLoading ? 'Sending OTP...' : `Send Code to ${customerUser?.email}`}
-                            </button>
-                        ) : (
-                            <form onSubmit={handleVerifyCouponOtp} style={{ display: 'flex', flexDirection: 'column', gap: '16px', textAlign: 'left' }}>
-                                <input
-                                    type="text"
-                                    maxLength="6"
-                                    className="form-input"
-                                    placeholder="Enter 6-Digit Code"
-                                    style={{ textAlign: 'center', letterSpacing: '8px', fontSize: '18px', fontWeight: 700 }}
-                                    value={couponOtp}
-                                    onChange={(e) => setCouponOtp(e.target.value)}
-                                    required
-                                />
-                                <button
-                                    type="submit"
-                                    className="btn btn-primary"
-                                    style={{ width: '100%', height: '48px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
-                                    disabled={couponOtpLoading}
-                                >
-                                    {couponOtpLoading ? 'Verifying OTP...' : 'Verify OTP & Lock Discount'}
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setIsCouponOtpSent(false);
-                                        setCouponOtp('');
-                                        setCouponOtpError('');
-                                    }}
-                                    className="btn btn-secondary"
-                                    style={{ width: '100%' }}
-                                    disabled={couponOtpLoading}
-                                >
-                                    Resend Code
-                                </button>
-                            </form>
-                        )}
-
-                        <button
-                            onClick={() => {
-                                setClaimSuccess(false);
-                                setCouponOtpError('');
-                                setIsCouponOtpSent(false);
-                                setCouponOtp('');
-                            }}
-                            className="btn btn-secondary"
-                            style={{ width: '100%', marginTop: '8px' }}
-                            disabled={couponOtpLoading}
-                        >
-                            Change Bill / Coupon
                         </button>
                     </div>
                 ) : (
