@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { API_BASE_URL } from '../config';
+import ScratchCard from './ScratchCard';
 
 export default function CustomerEntry() {
     const { slug } = useParams();
@@ -219,6 +220,8 @@ export default function CustomerEntry() {
     };
 
     const [advertisedCoupons, setAdvertisedCoupons] = useState([]);
+    const [claimingIds, setClaimingIds] = useState(new Set());
+    const [claimedIds, setClaimedIds] = useState(new Set());
 
     const handleResetFlow = () => {
         setBillAmount('');
@@ -234,6 +237,8 @@ export default function CustomerEntry() {
         setPromoCode('');
         setAppliedPromo(null);
         setPromoError('');
+        setClaimingIds(new Set());
+        setClaimedIds(new Set());
 
         // Refresh user coupon bank
         if (customerUser?.id && cafe?.id) {
@@ -301,6 +306,7 @@ export default function CustomerEntry() {
 
     const handleClaimCoupon = async (couponId) => {
         if (!customerUser?.id) return;
+        setClaimingIds(prev => new Set([...prev, couponId]));
         try {
             const res = await fetch(`${API_BASE_URL}/api/wallet/claim`, {
                 method: 'POST',
@@ -314,8 +320,7 @@ export default function CustomerEntry() {
             });
             const data = await res.json();
             if (data.success) {
-                setAdvertisedCoupons(prev => prev.filter(c => c.id !== couponId));
-                alert('Coupon successfully claimed and added to your Coupon Bank!');
+                setClaimedIds(prev => new Set([...prev, couponId]));
                 // Re-fetch active bank coupons
                 if (cafe?.id) {
                     fetch(`${API_BASE_URL}/api/wallet?userId=${customerUser.id}&cafeId=${cafe.id}`)
@@ -337,6 +342,12 @@ export default function CustomerEntry() {
         } catch (err) {
             console.error('Error claiming coupon:', err);
             alert('Failed to claim coupon.');
+        } finally {
+            setClaimingIds(prev => {
+                const next = new Set(prev);
+                next.delete(couponId);
+                return next;
+            });
         }
     };
 
@@ -752,40 +763,18 @@ export default function CustomerEntry() {
 
                         {advertisedCoupons.length > 0 && (
                             <div style={{ marginTop: '24px', marginBottom: '24px', textAlign: 'left' }}>
-                                <h4 style={{ fontSize: '13px', color: '#C084FC', marginBottom: '12px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                                    🎁 Claim Rewards For Your Next Visit
+                                <h4 style={{ fontSize: '14px', color: '#C084FC', marginBottom: '16px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                    🎁 Scratch and Claim Next Visit Rewards
                                 </h4>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px' }}>
                                     {advertisedCoupons.map((promo) => (
-                                        <div
+                                        <ScratchCard
                                             key={promo.id}
-                                            style={{
-                                                padding: '12px 14px',
-                                                background: 'rgba(255, 255, 255, 0.01)',
-                                                border: '1px solid var(--border-color)',
-                                                borderRadius: '10px',
-                                                display: 'flex',
-                                                justifyContent: 'space-between',
-                                                alignItems: 'center'
-                                            }}
-                                        >
-                                            <div style={{ flexGrow: 1, paddingRight: '8px' }}>
-                                                <div style={{ fontSize: '13px', fontWeight: 700, color: '#fff' }}>
-                                                    {promo.title}
-                                                </div>
-                                                <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: '4px 0 0 0', lineHeight: '1.4' }}>
-                                                    {promo.desc_text}
-                                                </p>
-                                            </div>
-                                            <button
-                                                type="button"
-                                                onClick={() => handleClaimCoupon(promo.id)}
-                                                className="btn btn-secondary"
-                                                style={{ padding: '0 12px', margin: 0, height: '32px', fontSize: '11px', width: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                            >
-                                                Claim
-                                            </button>
-                                        </div>
+                                            coupon={promo}
+                                            onClaim={handleClaimCoupon}
+                                            isClaimed={claimedIds.has(promo.id)}
+                                            isClaiming={claimingIds.has(promo.id)}
+                                        />
                                     ))}
                                 </div>
                             </div>
