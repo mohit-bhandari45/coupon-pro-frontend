@@ -7,6 +7,7 @@ export default function CustomerEntry() {
     const navigate = useNavigate();
     const [cafe, setCafe] = useState(null);
     const [coupons, setCoupons] = useState([]);
+    const [walletCoupons, setWalletCoupons] = useState([]); // User's claimed/wallet coupons
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
@@ -217,6 +218,8 @@ export default function CustomerEntry() {
         }
     };
 
+    const [advertisedCoupons, setAdvertisedCoupons] = useState([]);
+
     const handleResetFlow = () => {
         setBillAmount('');
         setSelectedCoupon(null);
@@ -232,15 +235,25 @@ export default function CustomerEntry() {
         setAppliedPromo(null);
         setPromoError('');
 
-        // Refresh cafe coupons to get updated daily frequency counts!
-        fetch(`${API_BASE_URL}/api/cafe/${slug}`)
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    setCoupons(data.coupons || []);
-                }
-            })
-            .catch(console.error);
+        // Refresh user coupon bank
+        if (customerUser?.id && cafe?.id) {
+            fetch(`${API_BASE_URL}/api/wallet?userId=${customerUser.id}&cafeId=${cafe.id}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        setWalletCoupons(data.coupons || []);
+                    }
+                })
+                .catch(console.error);
+
+            // Refresh public store coupons
+            fetch(`${API_BASE_URL}/api/cafe/${slug}?userId=${customerUser.id}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) setCoupons(data.coupons || []);
+                })
+                .catch(console.error);
+        }
 
         // Refresh customer credits
         if (customerUser?.email) {
@@ -256,11 +269,86 @@ export default function CustomerEntry() {
         }
     };
 
+    // Fetch user wallet coupons whenever user or cafe changes
+    useEffect(() => {
+        if (customerUser?.id && cafe?.id) {
+            fetch(`${API_BASE_URL}/api/wallet?userId=${customerUser.id}&cafeId=${cafe.id}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        setWalletCoupons(data.coupons || []);
+                    }
+                })
+                .catch(console.error);
+        } else {
+            setWalletCoupons([]);
+        }
+    }, [customerUser, cafe]);
+
+    // Fetch success screen promotion ads
+    useEffect(() => {
+        if (transactionSuccess && customerUser?.id) {
+            fetch(`${API_BASE_URL}/api/wallet/advertised?userId=${customerUser.id}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        setAdvertisedCoupons(data.coupons || []);
+                    }
+                })
+                .catch(console.error);
+        }
+    }, [transactionSuccess, customerUser]);
+
+    const handleClaimCoupon = async (couponId) => {
+        if (!customerUser?.id) return;
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/wallet/claim`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    userId: customerUser.id,
+                    couponId
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                setAdvertisedCoupons(prev => prev.filter(c => c.id !== couponId));
+                alert('Coupon successfully claimed and added to your Coupon Bank!');
+                // Re-fetch active bank coupons
+                if (cafe?.id) {
+                    fetch(`${API_BASE_URL}/api/wallet?userId=${customerUser.id}&cafeId=${cafe.id}`)
+                        .then(r => r.json())
+                        .then(d => {
+                            if (d.success) setWalletCoupons(d.coupons || []);
+                        });
+
+                    // Re-fetch public store coupons
+                    fetch(`${API_BASE_URL}/api/cafe/${slug}?userId=${customerUser.id}`)
+                        .then(r => r.json())
+                        .then(d => {
+                            if (d.success) setCoupons(d.coupons || []);
+                        });
+                }
+            } else {
+                alert(data.message || 'Failed to claim coupon.');
+            }
+        } catch (err) {
+            console.error('Error claiming coupon:', err);
+            alert('Failed to claim coupon.');
+        }
+    };
+
     useEffect(() => {
         setLoading(true);
         setError('');
 
-        fetch(`${API_BASE_URL}/api/cafe/${slug}`)
+        const url = customerUser?.id
+            ? `${API_BASE_URL}/api/cafe/${slug}?userId=${customerUser.id}`
+            : `${API_BASE_URL}/api/cafe/${slug}`;
+
+        fetch(url)
             .then((res) => {
                 if (!res.ok) {
                     throw new Error('Cafe not found or backend server offline');
@@ -392,6 +480,114 @@ export default function CustomerEntry() {
         const bill = parseFloat(billAmount || 0);
         const disc = getDiscountedAmount();
         return Math.max(0, bill - disc).toFixed(2);
+    };
+
+    const renderCouponList = (list, title, emptyMessage) => {
+        if (appliedPromo) return null;
+        if (list.length === 0) {
+            return (
+                <div style={{ textAlign: 'left', marginBottom: '24px' }}>
+                    <h3 style={{ fontSize: '15px', marginBottom: '10px', fontWeight: 600, color: 'var(--text-muted)', paddingLeft: '8px' }}>
+                        {title}
+                    </h3>
+                    <div className="card" style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
+                        {emptyMessage}
+                    </div>
+                </div>
+            );
+        }
+
+        return (
+            <div style={{ textAlign: 'left', marginBottom: '24px' }}>
+                <h3 style={{ fontSize: '15px', marginBottom: '10px', fontWeight: 600, color: '#fff', paddingLeft: '8px' }}>
+                    {title}
+                </h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {list.map((coupon) => {
+                        const minBill = parseFloat(coupon.min_bill_amount || 0);
+                        const isBelowMin = minBill > 0 && (!billAmount || parseFloat(billAmount) < minBill);
+                        const welcomeIds = ['WELCOME10', 'FREEBUI', 'FEST25'];
+                        const isWelcome = welcomeIds.includes(coupon.id);
+                        const isExhausted = (coupon.remaining_uses !== undefined && coupon.remaining_uses <= 0) || (isWelcome && remainingCredits === 0);
+                        const isCouponDisabled = isExhausted || isBelowMin;
+
+                        return (
+                            <div
+                                key={coupon.id}
+                                onClick={() => {
+                                    if (!isCouponDisabled) {
+                                        setSelectedCoupon(coupon);
+                                    }
+                                }}
+                                className={`card`}
+                                style={{
+                                    padding: '16px',
+                                    cursor: isCouponDisabled ? 'not-allowed' : 'pointer',
+                                    opacity: isCouponDisabled ? 0.55 : 1,
+                                    borderColor: selectedCoupon?.id === coupon.id && !isCouponDisabled ? 'var(--color-accent)' : 'var(--border-color)',
+                                    background: selectedCoupon?.id === coupon.id && !isCouponDisabled ? 'rgba(139, 92, 246, 0.05)' : 'var(--bg-card)'
+                                }}
+                            >
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                        <span
+                                            style={{
+                                                background: coupon.badge_label === 'Save' ? 'rgba(139, 92, 246, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                                                border: coupon.badge_label === 'Save' ? '1px solid rgba(139, 92, 246, 0.3)' : '1px solid rgba(16, 185, 129, 0.3)',
+                                                color: coupon.badge_label === 'Save' ? '#C084FC' : '#34D399',
+                                                padding: '4px 10px',
+                                                borderRadius: '100px',
+                                                fontSize: '11px',
+                                                fontWeight: 600,
+                                                textTransform: 'uppercase'
+                                            }}
+                                        >
+                                            {coupon.badge_label}
+                                        </span>
+                                    </div>
+
+                                    <input
+                                        type="radio"
+                                        name="selected_coupon"
+                                        disabled={isCouponDisabled}
+                                        checked={selectedCoupon?.id === coupon.id && !isCouponDisabled}
+                                        onChange={() => {
+                                            if (!isCouponDisabled) {
+                                                setSelectedCoupon(coupon);
+                                            }
+                                        }}
+                                        style={{ accentColor: '#8b5cf6' }}
+                                    />
+                                </div>
+
+                                <h4 style={{ fontSize: '16px', margin: '10px 0 4px 0', color: '#fff' }}>{coupon.title}</h4>
+                                <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: '0 0 10px 0' }}>{coupon.desc_text}</p>
+                                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                                    <div style={{ fontSize: '12px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)', display: 'inline-block', padding: '4px 10px', borderRadius: '6px', color: 'var(--text-secondary)' }}>
+                                        Discount: <strong style={{ color: '#fff' }}>{coupon.discount_type === 'percent' ? `${coupon.discount_value}% Off` : `₹${coupon.discount_value} Off`}</strong>
+                                    </div>
+                                    {parseFloat(coupon.min_bill_amount || 0) > 0 && (
+                                        <div style={{
+                                            fontSize: '11px',
+                                            background: isBelowMin ? 'rgba(239, 68, 68, 0.08)' : 'rgba(255,255,255,0.02)',
+                                            border: isBelowMin ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid var(--border-color)',
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '4px',
+                                            padding: '4px 10px',
+                                            borderRadius: '6px',
+                                            color: isBelowMin ? '#F87171' : 'var(--text-secondary)'
+                                        }}>
+                                            <span>ⓘ Min Spend: <strong>₹{parseFloat(coupon.min_bill_amount).toFixed(2)}</strong> {isBelowMin && <span style={{ fontSize: '9px', fontWeight: 'bold' }}>(Need more)</span>}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        );
     };
 
     if (loading) {
@@ -553,6 +749,47 @@ export default function CustomerEntry() {
                                 <span style={{ color: '#34D399', fontWeight: 800 }}>₹{parseFloat(transactionResult?.payable_amount || 0).toFixed(2)}</span>
                             </div>
                         </div>
+
+                        {advertisedCoupons.length > 0 && (
+                            <div style={{ marginTop: '24px', marginBottom: '24px', textAlign: 'left' }}>
+                                <h4 style={{ fontSize: '13px', color: '#C084FC', marginBottom: '12px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                    🎁 Claim Rewards For Your Next Visit
+                                </h4>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                    {advertisedCoupons.map((promo) => (
+                                        <div
+                                            key={promo.id}
+                                            style={{
+                                                padding: '12px 14px',
+                                                background: 'rgba(255, 255, 255, 0.01)',
+                                                border: '1px solid var(--border-color)',
+                                                borderRadius: '10px',
+                                                display: 'flex',
+                                                justifyContent: 'space-between',
+                                                alignItems: 'center'
+                                            }}
+                                        >
+                                            <div style={{ flexGrow: 1, paddingRight: '8px' }}>
+                                                <div style={{ fontSize: '13px', fontWeight: 700, color: '#fff' }}>
+                                                    {promo.title}
+                                                </div>
+                                                <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: '4px 0 0 0', lineHeight: '1.4' }}>
+                                                    {promo.desc_text}
+                                                </p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleClaimCoupon(promo.id)}
+                                                className="btn btn-secondary"
+                                                style={{ padding: '0 12px', margin: 0, height: '32px', fontSize: '11px', width: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                            >
+                                                Claim
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
 
                         <button
                             onClick={handleResetFlow}
@@ -726,7 +963,7 @@ export default function CustomerEntry() {
                                         border: remainingCredits === 0 ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(16, 185, 129, 0.3)',
                                         color: remainingCredits === 0 ? '#F87171' : '#34D399'
                                     }}>
-                                        {remainingCredits === 0 ? '0 Credits (Exhausted)' : `${remainingCredits} Claim${remainingCredits > 1 ? 's' : ''} Left`}
+                                        {remainingCredits === 0 ? '0 Credits (Exhausted)' : `${remainingCredits} Credit${remainingCredits > 1 ? 's' : ''} Left`}
                                     </span>
                                 </div>
                             </div>
@@ -803,110 +1040,34 @@ export default function CustomerEntry() {
                         </div>
 
                         {/* Coupons Selection List */}
-                        <div style={{ textAlign: 'left' }}>
-                            <h3 style={{ fontSize: '16px', marginBottom: '12px', fontWeight: 600, color: '#fff', paddingLeft: '8px' }}>
-                                Select 1 Loyalty Coupon
-                            </h3>
-
-                            {appliedPromo ? (
-                                <div className="card" style={{ padding: '20px', textAlign: 'center', color: '#FCD34D', fontSize: '13px', background: 'rgba(251, 191, 36, 0.02)', borderColor: 'rgba(251, 191, 36, 0.2)', lineHeight: '1.5' }}>
-                                    ✨ <strong>Promo Code applied ({appliedPromo.id})</strong>. The cafe's public loyalty rewards list is hidden. Remove the promo code to view public loyalty rewards.
-                                </div>
-                            ) : coupons.length === 0 ? (
-                                <div className="card" style={{ padding: '20px', textAlignment: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
-                                    No coupons configured for this store yet.
-                                </div>
-                            ) : (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                                    {coupons.map((coupon) => {
-                                        const minBill = parseFloat(coupon.min_bill_amount || 0);
-                                        const isBelowMin = minBill > 0 && (!billAmount || parseFloat(billAmount) < minBill);
-                                        const isExhausted = (coupon.remaining_uses !== undefined && coupon.remaining_uses <= 0) || remainingCredits === 0;
-                                        const isCouponDisabled = isExhausted || isBelowMin;
-
-                                        return (
-                                            <div
-                                                key={coupon.id}
-                                                onClick={() => {
-                                                    if (!isCouponDisabled) {
-                                                        setSelectedCoupon(coupon);
-                                                    }
-                                                }}
-                                                className={`card`}
-                                                style={{
-                                                    padding: '16px',
-                                                    cursor: isCouponDisabled ? 'not-allowed' : 'pointer',
-                                                    opacity: isCouponDisabled ? 0.55 : 1,
-                                                    borderColor: selectedCoupon?.id === coupon.id && !isCouponDisabled ? 'var(--color-accent)' : 'var(--border-color)',
-                                                    background: selectedCoupon?.id === coupon.id && !isCouponDisabled ? 'rgba(139, 92, 246, 0.05)' : 'var(--bg-card)'
-                                                }}
-                                            >
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                                        <span
-                                                            style={{
-                                                                background: coupon.badge_label === 'Save' ? 'rgba(139, 92, 246, 0.1)' : 'rgba(16, 185, 129, 0.1)',
-                                                                border: coupon.badge_label === 'Save' ? '1px solid rgba(139, 92, 246, 0.3)' : '1px solid rgba(16, 185, 129, 0.3)',
-                                                                color: coupon.badge_label === 'Save' ? '#C084FC' : '#34D399',
-                                                                padding: '4px 10px',
-                                                                borderRadius: '100px',
-                                                                fontSize: '11px',
-                                                                fontWeight: 600,
-                                                                textTransform: 'uppercase'
-                                                            }}
-                                                        >
-                                                            {coupon.badge_label}
-                                                        </span>
-                                                        <span style={{ fontSize: '11px', color: isExhausted ? '#F87171' : '#34D399', fontWeight: 500 }}>
-                                                            {isExhausted
-                                                                ? 'Fully Redeemed'
-                                                                : `${coupon.remaining_uses ?? coupon.max_uses ?? coupon.frequency_per_day} remaining`
-                                                            }
-                                                        </span>
-                                                    </div>
-
-                                                    <input
-                                                        type="radio"
-                                                        name="selected_coupon"
-                                                        disabled={isCouponDisabled}
-                                                        checked={selectedCoupon?.id === coupon.id && !isCouponDisabled}
-                                                        onChange={() => {
-                                                            if (!isCouponDisabled) {
-                                                                setSelectedCoupon(coupon);
-                                                            }
-                                                        }}
-                                                        style={{ accentColor: '#8b5cf6' }}
-                                                    />
-                                                </div>
-
-                                                <h4 style={{ fontSize: '16px', margin: '10px 0 4px 0', color: '#fff' }}>{coupon.title}</h4>
-                                                <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: '0 0 10px 0' }}>{coupon.desc_text}</p>
-                                                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                                                    <div style={{ fontSize: '12px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)', display: 'inline-block', padding: '4px 10px', borderRadius: '6px', color: 'var(--text-secondary)' }}>
-                                                        Discount: <strong style={{ color: '#fff' }}>{coupon.discount_type === 'percent' ? `${coupon.discount_value}% Off` : `₹${coupon.discount_value} Off`}</strong>
-                                                    </div>
-                                                    {parseFloat(coupon.min_bill_amount || 0) > 0 && (
-                                                        <div style={{
-                                                            fontSize: '11px',
-                                                            background: isBelowMin ? 'rgba(239, 68, 68, 0.08)' : 'rgba(255,255,255,0.02)',
-                                                            border: isBelowMin ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid var(--border-color)',
-                                                            display: 'inline-flex',
-                                                            alignItems: 'center',
-                                                            gap: '4px',
-                                                            padding: '4px 10px',
-                                                            borderRadius: '6px',
-                                                            color: isBelowMin ? '#F87171' : 'var(--text-secondary)'
-                                                        }}>
-                                                            <span>ⓘ Min Spend: <strong>₹{parseFloat(coupon.min_bill_amount).toFixed(2)}</strong> {isBelowMin && <span style={{ fontSize: '9px', fontWeight: 'bold' }}>(Need more)</span>}</span>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </div>
+                        {appliedPromo ? (
+                            <div className="card" style={{ padding: '20px', textAlign: 'center', color: '#FCD34D', fontSize: '13px', background: 'rgba(251, 191, 36, 0.02)', borderColor: 'rgba(251, 191, 36, 0.2)', lineHeight: '1.5', marginBottom: '24px' }}>
+                                ✨ <strong>Promo Code applied ({appliedPromo.id})</strong>. The store's loyalty rewards and welcome credits are hidden. Remove the promo code to view them.
+                            </div>
+                        ) : (
+                            <>
+                                {customerUser ? (
+                                    <>
+                                        {renderCouponList(
+                                            walletCoupons.filter(c => ['WELCOME10', 'FREEBUI', 'FEST25'].includes(c.id)),
+                                            "Your Credit Bank",
+                                            "You have no credits available."
+                                        )}
+                                        {renderCouponList(
+                                            walletCoupons.filter(c => !['WELCOME10', 'FREEBUI', 'FEST25'].includes(c.id)),
+                                            "Your Coupon Bank (Wallet)",
+                                            "Your Coupon Bank is empty."
+                                        )}
+                                    </>
+                                ) : (
+                                    renderCouponList(
+                                        coupons,
+                                        "Select 1 Loyalty Coupon",
+                                        "No coupons configured for this store yet."
+                                    )
+                                )}
+                            </>
+                        )}
 
                         {/* Calculations Card (if both inputs filled) */}
                         {billAmount && selectedCoupon && (
@@ -926,9 +1087,9 @@ export default function CustomerEntry() {
                             </div>
                         )}
 
-                        {remainingCredits === 0 && (
+                        {selectedCoupon && ['WELCOME10', 'FREEBUI', 'FEST25'].includes(selectedCoupon.id) && remainingCredits === 0 && (
                             <div style={{ padding: '12px 16px', borderRadius: '10px', backgroundColor: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#F87171', fontSize: '13px', textAlign: 'center', fontWeight: '500' }}>
-                                ⚠️ You have exhausted your maximum limit of 3 coupon claims. You cannot redeem any more coupons.
+                                ⚠️ You have exhausted your maximum limit of 3 coupon claims. You cannot redeem welcome coupons.
                             </div>
                         )}
 
@@ -937,9 +1098,9 @@ export default function CustomerEntry() {
                             type="submit"
                             className={`btn btn-primary`}
                             style={{ height: '52px', marginTop: '12px' }}
-                            disabled={remainingCredits === 0 || !selectedCoupon}
+                            disabled={!selectedCoupon || (selectedCoupon && ['WELCOME10', 'FREEBUI', 'FEST25'].includes(selectedCoupon.id) && remainingCredits === 0)}
                         >
-                            {remainingCredits === 0
+                            {selectedCoupon && ['WELCOME10', 'FREEBUI', 'FEST25'].includes(selectedCoupon.id) && remainingCredits === 0
                                 ? 'Credits Limit Exhausted'
                                 : 'Verify & Lock Discount'
                             }
