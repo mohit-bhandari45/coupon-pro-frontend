@@ -452,10 +452,6 @@ export default function CustomerEntry() {
             alert('Please enter a valid bill amount');
             return;
         }
-        if (!selectedCoupon && !isCashbackApplied) {
-            alert('Please select a coupon or apply cashback to continue');
-            return;
-        }
 
         setCouponVerified(true);
     };
@@ -529,7 +525,11 @@ export default function CustomerEntry() {
                                 key={coupon.id}
                                 onClick={() => {
                                     if (!isCouponDisabled) {
-                                        setSelectedCoupon(coupon);
+                                        if (selectedCoupon?.id === coupon.id) {
+                                            setSelectedCoupon(null);
+                                        } else {
+                                            setSelectedCoupon(coupon);
+                                        }
                                     }
                                 }}
                                 className={`card`}
@@ -869,12 +869,12 @@ export default function CustomerEntry() {
                         <div style={{ fontSize: '48px', marginBottom: '16px' }}>💳</div>
                         <h2 style={{ fontSize: '24px', color: '#fff', marginBottom: '12px', fontWeight: 700 }}>Complete Your Payment</h2>
                         <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '24px', lineHeight: '1.5' }}>
-                            Your discount is verified! Touch the button below to pay <strong>₹{getPayableAmount()}</strong> via UPI, or show this screen to the cashier.
+                            {selectedCoupon || isCashbackApplied ? 'Your discount is verified!' : 'Your checkout details are verified!'} Touch the button below to pay <strong>₹{getPayableAmount()}</strong> via UPI, or show this screen to the cashier.
                         </p>
 
                         <div style={{ background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', marginBottom: '24px', textAlign: 'left' }}>
                             <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Applied Reward:</div>
-                            <div style={{ fontSize: '16px', fontWeight: 600, color: '#fff', marginBottom: '8px' }}>{selectedCoupon?.title}</div>
+                            <div style={{ fontSize: '16px', fontWeight: 600, color: '#fff', marginBottom: '8px' }}>{selectedCoupon?.title || 'None'}</div>
                             <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Final Payable:</div>
                             <div style={{ fontSize: '24px', fontWeight: 800, color: '#34D399' }}>₹{getPayableAmount()}</div>
                         </div>

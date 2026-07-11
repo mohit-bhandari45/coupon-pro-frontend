@@ -571,12 +571,14 @@ export default function AdminDashboard() {
                                         </div>
 
                                         <div style={{ minWidth: '95px', textAlign: 'center', borderLeft: '1px dashed rgba(255, 255, 255, 0.1)', paddingLeft: '16px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                                            <span style={{ fontSize: '8px', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.5px' }}>DISCOUNT</span>
+                                             <span style={{ fontSize: '8px', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.5px' }}>
+                                                 {discountType === 'cashback' ? 'CASHBACK' : 'DISCOUNT'}
+                                             </span>
                                             <span style={{ fontSize: '18px', fontWeight: 900, background: discountType === 'cashback' ? 'linear-gradient(135deg, #A855F7 30%, #C084FC 100%)' : 'linear-gradient(135deg, #EF4444 30%, #F59E0B 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', fontFamily: 'monospace', margin: '2px 0' }}>
                                                 {discountType === 'percent' ? `${discountValue || 0}%` : `₹${discountValue || 0}`}
                                             </span>
                                             <span style={{ fontSize: '8px', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.5px' }}>
-                                                {discountType === 'cashback' ? 'CASHBACK' : 'OFF'}
+                                                {discountType === 'cashback' ? 'EARN' : 'OFF'}
                                             </span>
                                         </div>
                                     </div>
@@ -633,7 +635,9 @@ export default function AdminDashboard() {
                                             </select>
                                         </div>
                                         <div className="form-group" style={{ margin: 0 }}>
-                                            <label className="form-label" style={{ fontSize: '12px' }}>Discount Value</label>
+                                            <label className="form-label" style={{ fontSize: '12px' }}>
+                                                {discountType === 'cashback' ? 'Cashback Value (₹)' : 'Discount Value'}
+                                            </label>
                                             <input
                                                 type="number"
                                                 placeholder="50"
