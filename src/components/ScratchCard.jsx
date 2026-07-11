@@ -158,28 +158,31 @@ const ScratchCard = ({ coupon, onClaim, isClaimed, isClaiming }) => {
                     </span>
                     {isRevealed && (
                         <span
-                            onClick={handleCopy}
                             style={{
                                 fontSize: '10px',
-                                background: copied ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255,255,255,0.06)',
+                                background: isClaimed ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255,255,255,0.06)',
                                 border: '1px solid rgba(255,255,255,0.1)',
                                 padding: '3px 8px',
                                 borderRadius: '4px',
-                                cursor: 'pointer',
-                                color: copied ? '#34D399' : 'var(--text-secondary)',
+                                color: isClaimed ? '#34D399' : 'var(--text-secondary)',
                                 fontWeight: 500,
-                                userSelect: 'none',
                                 display: 'inline-flex',
                                 alignItems: 'center',
                                 gap: '4px'
                             }}
                         >
-                            {copied ? '✓ Copied' : '📋 Copy Code'}
+                            {isClaimed ? '✓ Claimed' : '📋 Unclaimed'}
                         </span>
                     )}
                 </div>
 
-                <h4 style={{ fontSize: '14px', color: '#fff', margin: '8px 0 4px 0', fontWeight: 700 }}>
+                {isRevealed && coupon.cafe_name && (
+                    <div style={{ fontSize: '11px', color: '#A78BFA', fontWeight: 650, margin: '8px 0 2px 0', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        📍 {coupon.cafe_name}
+                    </div>
+                )}
+
+                <h4 style={{ fontSize: '14px', color: '#fff', margin: coupon.cafe_name ? '4px 0' : '8px 0 4px 0', fontWeight: 700 }}>
                     {coupon.title}
                 </h4>
                 <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.4' }}>
@@ -198,13 +201,21 @@ const ScratchCard = ({ coupon, onClaim, isClaimed, isClaiming }) => {
                 {isRevealed ? (
                     <button
                         type="button"
-                        onClick={() => !isClaimed && onClaim(coupon.id)}
+                        onClick={() => {
+                            if (!isClaimed) {
+                                // Claim and copy coupon code in one layout action
+                                navigator.clipboard.writeText(coupon.id);
+                                setCopied(true);
+                                setTimeout(() => setCopied(false), 2000);
+                                onClaim(coupon.id);
+                            }
+                        }}
                         disabled={isClaimed || isClaiming}
                         className="btn"
                         style={{
                             padding: '0 12px',
                             margin: 0,
-                            height: '32px',
+                            height: '34px',
                             fontSize: '11px',
                             width: '100%',
                             display: 'flex',
@@ -215,14 +226,15 @@ const ScratchCard = ({ coupon, onClaim, isClaimed, isClaiming }) => {
                             color: isClaimed ? '#34D399' : '#fff',
                             fontWeight: 600,
                             borderRadius: '8px',
-                            transition: 'all 0.2s ease'
+                            transition: 'all 0.2s ease',
+                            gap: '4px'
                         }}
                     >
-                        {isClaiming ? 'Claiming...' : isClaimed ? '✓ Claimed & In Wallet' : 'Claim Coupon'}
+                        {isClaiming ? 'Claiming...' : isClaimed ? '✓ Claimed & Code Copied' : '🎁 Claim & Copy Code'}
                     </button>
                 ) : (
                     // Phantom space-keeper to matching card height before reveal
-                    <div style={{ height: '32px' }} />
+                    <div style={{ height: '34px' }} />
                 )}
             </div>
 

@@ -27,6 +27,14 @@ export default function CustomerEntry() {
         return saved ? parseInt(saved, 10) : 3;
     });
 
+    const [walletBalance, setWalletBalance] = useState(() => {
+        const saved = localStorage.getItem('customerWalletBalance');
+        return saved ? parseFloat(saved) : 0;
+    });
+
+    const [authMode, setAuthMode] = useState('login'); // 'login' or 'register'
+    const [isCashbackApplied, setIsCashbackApplied] = useState(false);
+
     // Redirect if owner is logged in
     useEffect(() => {
         if (localStorage.getItem('ownerToken')) {
@@ -132,6 +140,8 @@ export default function CustomerEntry() {
         setTransactionLoading(true);
         setTransactionError('');
 
+        const cbToApply = getCashbackToApply();
+
         try {
             const res = await fetch(`${API_BASE_URL}/api/transaction/create`, {
                 method: 'POST',
@@ -141,10 +151,11 @@ export default function CustomerEntry() {
                 body: JSON.stringify({
                     cafe_id: cafe.id,
                     user_id: customerUser.id,
-                    coupon_id: selectedCoupon.id,
+                    coupon_id: selectedCoupon ? selectedCoupon.id : null,
                     bill_amount: parseFloat(billAmount),
                     discount_amount: getDiscountedAmount(),
-                    payable_amount: parseFloat(getPayableAmount())
+                    payable_amount: parseFloat(getPayableAmount()),
+                    cashback_applied: cbToApply
                 })
             });
 
@@ -152,8 +163,25 @@ export default function CustomerEntry() {
             if (data.success) {
                 setTransactionResult(data.transaction);
                 setTransactionSuccess(true);
+                // Dynamically deduct applied cashback locally
+                if (cbToApply > 0) {
+                    const nextBal = Math.max(0, walletBalance - cbToApply);
+                    localStorage.setItem('customerWalletBalance', nextBal.toString());
+                    setWalletBalance(nextBal);
+                }
             } else {
-                setTransactionError(data.message || 'Failed to record transaction');
+                if (data.session_expired) {
+                    localStorage.removeItem('customerUser');
+                    localStorage.removeItem('customerCredits');
+                    localStorage.removeItem('customerWalletBalance');
+                    setCustomerUser(null);
+                    setRemainingCredits(3);
+                    setWalletBalance(0);
+                    alert('Session expired or user not found. Please log in or register again.');
+                    handleResetFlow();
+                } else {
+                    setTransactionError(data.message || 'Failed to record transaction');
+                }
             }
         } catch (err) {
             setTransactionError('Connection error to backend');
@@ -173,6 +201,7 @@ export default function CustomerEntry() {
         setCouponOtp('');
         setIsCouponOtpSent(false);
         setCouponVerified(false);
+        setIsCashbackApplied(false);
         setTransactionSuccess(false);
         setTransactionResult(null);
         setTransactionError('');
@@ -331,6 +360,9 @@ export default function CustomerEntry() {
                     if (data.success) {
                         localStorage.setItem('customerCredits', data.remaining.toString());
                         setRemainingCredits(data.remaining);
+                        const bal = data.walletBalance !== undefined ? parseFloat(data.walletBalance) : 0;
+                        localStorage.setItem('customerWalletBalance', bal.toString());
+                        setWalletBalance(bal);
                     }
                 })
                 .catch(console.error);
@@ -339,6 +371,10 @@ export default function CustomerEntry() {
 
     const handleSendOtp = async (e) => {
         e.preventDefault();
+        if (authMode === 'register' && !loginName.trim()) {
+            setAuthError('Full Name is required for registration.');
+            return;
+        }
         setAuthLoading(true);
         setAuthError('');
 
@@ -348,7 +384,7 @@ export default function CustomerEntry() {
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ email: loginEmail })
+                body: JSON.stringify({ email: loginEmail, mode: authMode })
             });
 
             const data = await res.json();
@@ -378,7 +414,7 @@ export default function CustomerEntry() {
                 body: JSON.stringify({
                     email: loginEmail,
                     code: otpCode,
-                    name: loginName
+                    name: authMode === 'register' ? loginName : undefined
                 })
             });
 
@@ -388,8 +424,12 @@ export default function CustomerEntry() {
                 localStorage.setItem('customerUser', JSON.stringify(data.user));
                 const credits = data.remainingCredits !== undefined ? data.remainingCredits : 3;
                 localStorage.setItem('customerCredits', credits.toString());
+                const bal = data.user.wallet_balance !== undefined ? parseFloat(data.user.wallet_balance) : 0;
+                localStorage.setItem('customerWalletBalance', bal.toString());
                 setCustomerUser(data.user);
                 setRemainingCredits(credits);
+                setWalletBalance(bal);
+                setIsCashbackApplied(false);
             } else {
                 setAuthError(data.message || 'OTP verification failed');
             }
@@ -406,8 +446,8 @@ export default function CustomerEntry() {
             alert('Please enter a valid bill amount');
             return;
         }
-        if (!selectedCoupon) {
-            alert('Please select an active coupon to continue');
+        if (!selectedCoupon && !isCashbackApplied) {
+            alert('Please select a coupon or apply cashback to continue');
             return;
         }
 
@@ -430,10 +470,19 @@ export default function CustomerEntry() {
         }
     };
 
+    const getCashbackToApply = () => {
+        if (!isCashbackApplied) return 0;
+        const bill = parseFloat(billAmount || 0);
+        const disc = getDiscountedAmount();
+        const costAfterCoupon = Math.max(0, bill - disc);
+        return Math.min(walletBalance, costAfterCoupon);
+    };
+
     const getPayableAmount = () => {
         const bill = parseFloat(billAmount || 0);
         const disc = getDiscountedAmount();
-        return Math.max(0, bill - disc).toFixed(2);
+        const cb = getCashbackToApply();
+        return Math.max(0, bill - disc - cb).toFixed(2);
     };
 
     const renderCouponList = (list, title, emptyMessage) => {
@@ -580,22 +629,55 @@ export default function CustomerEntry() {
                 {/* Brand Header */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 8px', marginBottom: '16px' }}>
                     <div className="nav-brand" style={{ fontSize: '20px' }}>
-                        <div className="nav-logo-icon" style={{ width: '30px', height: '30px', borderRadius: '8px', fontSize: '16px' }}>☕</div>
+                        <div className="nav-logo-icon" style={{ width: '30px', height: '30px', borderRadius: '8px', fontSize: '16px' }}>
+                            {cafe?.logo_url ? <img src={cafe.logo_url} alt="Logo" style={{ width: '100%', height: '100%', borderRadius: '8px' }} /> : '☕'}
+                        </div>
                         <span>{cafe?.name}</span>
                     </div>
-                    <div className="badge" style={{ margin: 0, padding: '4px 10px', fontSize: '11px' }}>Customer Portal</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {customerUser && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    localStorage.removeItem('customerUser');
+                                    localStorage.removeItem('customerToken');
+                                    localStorage.removeItem('customerCredits');
+                                    localStorage.removeItem('customerWalletBalance');
+                                    setCustomerUser(null);
+                                    setRemainingCredits(3);
+                                    setWalletBalance(0);
+                                    handleResetFlow();
+                                }}
+                                style={{
+                                    background: 'rgba(239, 68, 68, 0.1)',
+                                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                                    color: '#F87171',
+                                    borderRadius: '6px',
+                                    fontSize: '11px',
+                                    padding: '4px 8px',
+                                    cursor: 'pointer',
+                                    fontWeight: 600
+                                }}
+                            >
+                                Logout ⤶
+                            </button>
+                        )}
+                        <div className="badge" style={{ margin: 0, padding: '4px 10px', fontSize: '11px' }}>Customer Portal</div>
+                    </div>
                 </div>
 
                 {!customerUser ? (
                     /* Customer Auth (Sign-in / Signup) Email-Only Flow */
                     <div className="card" style={{ padding: '32px 24px', textAlign: 'center', animation: 'fadeIn 0.3s ease', marginTop: '24px' }}>
                         <h2 style={{ fontSize: '22px', color: '#fff', marginBottom: '8px', fontWeight: 700 }}>
-                            {isOtpSent ? 'Verify Your Email' : 'Customer Sign-In'}
+                            {isOtpSent ? 'Verify Your Email' : authMode === 'register' ? 'Customer Sign-Up' : 'Customer Sign-In'}
                         </h2>
                         <p style={{ color: 'var(--text-secondary)', fontSize: '13px', marginBottom: '24px', lineHeight: '1.5' }}>
                             {isOtpSent
                                 ? `We've sent a 6-digit verification code to ${loginEmail}. Please enter it below.`
-                                : `Welcome to ${cafe?.name || 'our Cafe'}! Sign in to view and unlock custom store loyalty discounts.`
+                                : authMode === 'register'
+                                    ? 'Create an account to claim custom cafe discounts and get welcome wallet cashback.'
+                                    : `Welcome to ${cafe?.name || 'our Cafe'}! Sign in to view and unlock custom store loyalty discounts.`
                             }
                         </p>
 
@@ -607,17 +689,47 @@ export default function CustomerEntry() {
 
                         {!isOtpSent ? (
                             <form onSubmit={handleSendOtp} style={{ display: 'flex', flexDirection: 'column', gap: '16px', textAlign: 'left' }}>
-                                <div>
-                                    <label className="form-label" style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Full Name</label>
-                                    <input
-                                        type="text"
-                                        className="form-input"
-                                        placeholder="e.g. John Doe"
-                                        value={loginName}
-                                        onChange={(e) => setLoginName(e.target.value)}
-                                        required
-                                    />
+                                <div style={{ display: 'flex', gap: '10px', marginBottom: '10px', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
+                                    <button
+                                        type="button"
+                                        onClick={() => { setAuthMode('login'); setAuthError(''); }}
+                                        style={{
+                                            flex: 1, padding: '8px', background: 'none', border: 'none',
+                                            color: authMode === 'login' ? '#C084FC' : 'var(--text-secondary)',
+                                            fontWeight: authMode === 'login' ? 'bold' : 'normal',
+                                            borderBottom: authMode === 'login' ? '2px solid #C084FC' : 'none',
+                                            cursor: 'pointer'
+                                        }}
+                                    >
+                                        Sign In
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => { setAuthMode('register'); setAuthError(''); }}
+                                        style={{
+                                            flex: 1, padding: '8px', background: 'none', border: 'none',
+                                            color: authMode === 'register' ? '#C084FC' : 'var(--text-secondary)',
+                                            fontWeight: authMode === 'register' ? 'bold' : 'normal',
+                                            borderBottom: authMode === 'register' ? '2px solid #C084FC' : 'none',
+                                            cursor: 'pointer'
+                                        }}
+                                    >
+                                        Sign Up
+                                    </button>
                                 </div>
+                                {authMode === 'register' && (
+                                    <div>
+                                        <label className="form-label" style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Full Name</label>
+                                        <input
+                                            type="text"
+                                            className="form-input"
+                                            placeholder="e.g. John Doe"
+                                            value={loginName}
+                                            onChange={(e) => setLoginName(e.target.value)}
+                                            required
+                                        />
+                                    </div>
+                                )}
                                 <div>
                                     <label className="form-label" style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Email Address</label>
                                     <input
@@ -635,7 +747,7 @@ export default function CustomerEntry() {
                                     style={{ width: '100%', height: '48px', marginTop: '8px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
                                     disabled={authLoading}
                                 >
-                                    {authLoading ? 'Sending...' : 'Send Verification Code'}
+                                    {authLoading ? 'Sending...' : authMode === 'register' ? 'Send Sign-Up Code' : 'Send Sign-In Code'}
                                 </button>
                             </form>
                         ) : (
@@ -785,34 +897,34 @@ export default function CustomerEntry() {
                     /* Standard Scan Landing Entry Screen */
                     <form onSubmit={handleApplyCoupon} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
-                        {/* Customer Credits Information Panel */}
+                        {/* Customer Credits & Cashback Wallet Panel */}
                         {customerUser && (
-                            <div className="card" style={{
-                                padding: '16px 20px',
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                borderLeft: remainingCredits === 0 ? '4px solid #EF4444' : '4px solid #34D399',
-                                background: 'rgba(255,255,255,0.01)'
-                            }}>
-                                <div>
-                                    <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Redemption Credits</div>
-                                    <div style={{ fontSize: '15px', fontWeight: 700, color: '#fff', marginTop: '2px' }}>
-                                        {customerUser.name || 'Anonymous User'}
+                            <div style={{ display: 'flex', gap: '10px' }}>
+                                <div className="card" style={{
+                                    flex: 1,
+                                    padding: '12px 16px',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    borderLeft: remainingCredits === 0 ? '4px solid #EF4444' : '4px solid #34D399',
+                                    background: 'rgba(255,255,255,0.01)'
+                                }}>
+                                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Redemption Credits</div>
+                                    <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff', marginTop: '4px' }}>
+                                        {remainingCredits === 0 ? '0 (Exhausted)' : `${remainingCredits} Left`}
                                     </div>
                                 </div>
-                                <div style={{ textAlign: 'right' }}>
-                                    <span style={{
-                                        padding: '4px 10px',
-                                        borderRadius: '100px',
-                                        fontSize: '12px',
-                                        fontWeight: 700,
-                                        background: remainingCredits === 0 ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)',
-                                        border: remainingCredits === 0 ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(16, 185, 129, 0.3)',
-                                        color: remainingCredits === 0 ? '#F87171' : '#34D399'
-                                    }}>
-                                        {remainingCredits === 0 ? '0 Credits (Exhausted)' : `${remainingCredits} Credit${remainingCredits > 1 ? 's' : ''} Left`}
-                                    </span>
+                                <div className="card" style={{
+                                    flex: 1,
+                                    padding: '12px 16px',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    borderLeft: '4px solid #8b5cf6',
+                                    background: 'rgba(255,255,255,0.01)'
+                                }}>
+                                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Cashback Wallet</div>
+                                    <div style={{ fontSize: '14px', fontWeight: 700, color: '#C084FC', marginTop: '4px' }}>
+                                        ₹{walletBalance.toFixed(2)}
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -895,18 +1007,11 @@ export default function CustomerEntry() {
                         ) : (
                             <>
                                 {customerUser ? (
-                                    <>
-                                        {renderCouponList(
-                                            walletCoupons.filter(c => ['WELCOME10', 'FREEBUI', 'FEST25'].includes(c.id)),
-                                            "Your Credit Bank",
-                                            "You have no credits available."
-                                        )}
-                                        {renderCouponList(
-                                            walletCoupons.filter(c => !['WELCOME10', 'FREEBUI', 'FEST25'].includes(c.id)),
-                                            "Your Coupon Bank (Wallet)",
-                                            "Your Coupon Bank is empty."
-                                        )}
-                                    </>
+                                    renderCouponList(
+                                        walletCoupons,
+                                        `Your Coupon Bank (Wallet)`,
+                                        "Your Coupon Bank is empty."
+                                    )
                                 ) : (
                                     renderCouponList(
                                         coupons,
@@ -917,17 +1022,41 @@ export default function CustomerEntry() {
                             </>
                         )}
 
-                        {/* Calculations Card (if both inputs filled) */}
-                        {billAmount && selectedCoupon && (
+                        {/* Cashback Apply Wallet Checkbox */}
+                        {customerUser && walletBalance > 0 && billAmount && parseFloat(billAmount) > 0 && (
+                            <div className="card" style={{ padding: '16px 20px', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <input
+                                    type="checkbox"
+                                    id="apply-cashback"
+                                    checked={isCashbackApplied}
+                                    onChange={(e) => setIsCashbackApplied(e.target.checked)}
+                                    style={{ width: '18px', height: '18px', accentColor: '#8b5cf6', cursor: 'pointer' }}
+                                />
+                                <label htmlFor="apply-cashback" style={{ fontSize: '14px', color: '#fff', cursor: 'pointer', userSelect: 'none', margin: 0 }}>
+                                    Apply Cashback Wallet Balance (Available: <strong>₹{walletBalance.toFixed(2)}</strong>)
+                                </label>
+                            </div>
+                        )}
+
+                        {/* Calculations Card (if bill and coupon/cashback active) */}
+                        {billAmount && parseFloat(billAmount) > 0 && (selectedCoupon || isCashbackApplied) && (
                             <div className="card" style={{ padding: '20px', textAlign: 'left', animation: 'fadeIn 0.2s ease', borderStyle: 'dashed' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '6px' }}>
-                                    <span>Applied Reward:</span>
-                                    <span>{selectedCoupon.title}</span>
+                                    <span>Bill Amount:</span>
+                                    <span>₹{parseFloat(billAmount).toFixed(2)}</span>
                                 </div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '10px' }}>
-                                    <span>Discount Savings:</span>
-                                    <span style={{ color: '#F87171' }}>- ₹{getDiscountedAmount()}</span>
-                                </div>
+                                {selectedCoupon && (
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                                        <span>Applied Coupon Discount ({selectedCoupon.title}):</span>
+                                        <span style={{ color: '#F87171' }}>- ₹{getDiscountedAmount().toFixed(2)}</span>
+                                    </div>
+                                )}
+                                {isCashbackApplied && getCashbackToApply() > 0 && (
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '10px' }}>
+                                        <span>Wallet Cashback Applied:</span>
+                                        <span style={{ color: '#F87171' }}>- ₹{getCashbackToApply().toFixed(2)}</span>
+                                    </div>
+                                )}
                                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '16px', fontWeight: 700, borderTop: '1px solid var(--border-color)', paddingTop: '10px', color: '#fff' }}>
                                     <span>Payable at Counter:</span>
                                     <span style={{ color: '#34D399' }}>₹{getPayableAmount()}</span>
@@ -935,7 +1064,7 @@ export default function CustomerEntry() {
                             </div>
                         )}
 
-                        {selectedCoupon && ['WELCOME10', 'FREEBUI', 'FEST25'].includes(selectedCoupon.id) && remainingCredits === 0 && (
+                        {selectedCoupon && remainingCredits === 0 && (
                             <div style={{ padding: '12px 16px', borderRadius: '10px', backgroundColor: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#F87171', fontSize: '13px', textAlign: 'center', fontWeight: '500' }}>
                                 ⚠️ You have exhausted your maximum limit of 3 coupon claims. You cannot redeem welcome coupons.
                             </div>
@@ -946,9 +1075,12 @@ export default function CustomerEntry() {
                             type="submit"
                             className={`btn btn-primary`}
                             style={{ height: '52px', marginTop: '12px' }}
-                            disabled={!selectedCoupon || (selectedCoupon && ['WELCOME10', 'FREEBUI', 'FEST25'].includes(selectedCoupon.id) && remainingCredits === 0)}
+                            disabled={
+                                (!selectedCoupon && !isCashbackApplied) ||
+                                (selectedCoupon && remainingCredits === 0)
+                            }
                         >
-                            {selectedCoupon && ['WELCOME10', 'FREEBUI', 'FEST25'].includes(selectedCoupon.id) && remainingCredits === 0
+                            {selectedCoupon && remainingCredits === 0
                                 ? 'Credits Limit Exhausted'
                                 : 'Verify & Lock Discount'
                             }

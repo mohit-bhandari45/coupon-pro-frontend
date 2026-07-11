@@ -15,10 +15,12 @@ export default function Dashboard({ cafe, token, onLogout, onUpdateCafe }) {
     const [email, setEmail] = useState(cafe?.email || '');
     const [address, setAddress] = useState(cafe?.address || '');
     const [upiId, setUpiId] = useState(cafe?.upi_id || '');
+    const [allowPlatformCoupons, setAllowPlatformCoupons] = useState(cafe?.allow_platform_coupons !== false);
 
     // Coupons State Fields
     const [coupons, setCoupons] = useState([]);
     const [transactions, setTransactions] = useState([]);
+    const [metrics, setMetrics] = useState({ newCustomers: 0, repeatCustomers: 0 });
     const [couponTitle, setCouponTitle] = useState('');
     const [couponDesc, setCouponDesc] = useState('');
     const [couponBadge, setCouponBadge] = useState('Save');
@@ -53,6 +55,9 @@ export default function Dashboard({ cafe, token, onLogout, onUpdateCafe }) {
             const txData = await txRes.json();
             if (txData.success) {
                 setTransactions(txData.transactions || []);
+                if (txData.metrics) {
+                    setMetrics(txData.metrics);
+                }
             }
         } catch (err) {
             console.error('Error fetching store coupons & transactions:', err);
@@ -64,6 +69,17 @@ export default function Dashboard({ cafe, token, onLogout, onUpdateCafe }) {
             fetchCoupons();
         }
     }, [cafe?.slug, activeTab]);
+
+    useEffect(() => {
+        if (cafe) {
+            setName(cafe.name || '');
+            setOwnerName(cafe.owner_name || '');
+            setEmail(cafe.email || '');
+            setAddress(cafe.address || '');
+            setUpiId(cafe.upi_id || '');
+            setAllowPlatformCoupons(cafe.allow_platform_coupons !== false);
+        }
+    }, [cafe]);
 
     useEffect(() => {
         if (!token || !cafe) {
@@ -169,7 +185,8 @@ export default function Dashboard({ cafe, token, onLogout, onUpdateCafe }) {
                     owner_name: ownerName,
                     email,
                     address,
-                    upi_id: upiId
+                    upi_id: upiId,
+                    allow_platform_coupons: allowPlatformCoupons
                 })
             });
 
@@ -318,20 +335,69 @@ export default function Dashboard({ cafe, token, onLogout, onUpdateCafe }) {
                             </div>
 
                             {/* Stats Counters */}
-                            <div className="dashboard-stats">
-                                <div className="card stat-card">
-                                    <div className="stat-label">Total Visits</div>
-                                    <div className="stat-value">{totalVisits}</div>
+                            <div className="dashboard-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+                                <div className="card stat-card" style={{ padding: '16px' }}>
+                                    <div className="stat-label" style={{ fontSize: '11px' }}>Total Visits</div>
+                                    <div className="stat-value" style={{ fontSize: '22px' }}>{totalVisits}</div>
                                 </div>
-                                <div className="card stat-card">
-                                    <div className="stat-label">Loyalty Claims</div>
-                                    <div className="stat-value">{totalClaims}</div>
+                                <div className="card stat-card" style={{ padding: '16px' }}>
+                                    <div className="stat-label" style={{ fontSize: '11px' }}>Loyalty Claims</div>
+                                    <div className="stat-value" style={{ fontSize: '22px' }}>{totalClaims}</div>
                                 </div>
-                                <div className="card stat-card">
-                                    <div className="stat-label">Total Revenue</div>
-                                    <div className="stat-value">₹{totalRevenue.toFixed(2)}</div>
+                                <div className="card stat-card" style={{ padding: '16px' }}>
+                                    <div className="stat-label" style={{ fontSize: '11px' }}>Total Revenue</div>
+                                    <div className="stat-value" style={{ fontSize: '22px' }}>₹{totalRevenue.toFixed(2)}</div>
+                                </div>
+                                <div className="card stat-card" style={{ padding: '16px', borderLeft: '3px solid #A855F7' }}>
+                                    <div className="stat-label" style={{ fontSize: '11px', color: '#A855F7' }}>New Customers</div>
+                                    <div className="stat-value" style={{ fontSize: '22px' }}>{metrics.newCustomers}</div>
+                                </div>
+                                <div className="card stat-card" style={{ padding: '16px', borderLeft: '3px solid #10B981' }}>
+                                    <div className="stat-label" style={{ fontSize: '11px', color: '#10B981' }}>Repeat Customers</div>
+                                    <div className="stat-value" style={{ fontSize: '22px' }}>{metrics.repeatCustomers}</div>
                                 </div>
                             </div>
+
+                            {/* Customer Acquisition & Retention Analytics Bar */}
+                            {(metrics.newCustomers > 0 || metrics.repeatCustomers > 0) && (
+                                <div className="card" style={{ textAlign: 'left', marginBottom: '32px', padding: '20px 24px' }}>
+                                    <h3 style={{ fontSize: '16px', marginBottom: '14px', color: '#fff', fontWeight: 600 }}>
+                                        Customer Traffic Distribution (Acquisition vs. Retention)
+                                    </h3>
+                                    <div style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
+                                        <div style={{ flexGrow: 1 }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                                                <span>New Customers ({metrics.newCustomers})</span>
+                                                <span>Repeat Customers ({metrics.repeatCustomers})</span>
+                                            </div>
+                                            <div style={{ width: '100%', height: '10px', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '5px', display: 'flex', overflow: 'hidden' }}>
+                                                <div style={{
+                                                    width: `${(metrics.newCustomers / (metrics.newCustomers + metrics.repeatCustomers)) * 100}%`,
+                                                    height: '100%',
+                                                    backgroundColor: '#A855F7',
+                                                    transition: 'width 0.4s ease'
+                                                }}></div>
+                                                <div style={{
+                                                    width: `${(metrics.repeatCustomers / (metrics.newCustomers + metrics.repeatCustomers)) * 100}%`,
+                                                    height: '100%',
+                                                    backgroundColor: '#10B981',
+                                                    transition: 'width 0.4s ease'
+                                                }}></div>
+                                            </div>
+                                            <div style={{ display: 'flex', gap: '16px', marginTop: '10px', fontSize: '11px' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                    <span style={{ display: 'inline-block', width: '8px', height: '8px', backgroundColor: '#A855F7', borderRadius: '50%' }}></span>
+                                                    <span>New: {((metrics.newCustomers / (metrics.newCustomers + metrics.repeatCustomers)) * 100).toFixed(0)}%</span>
+                                                </div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                    <span style={{ display: 'inline-block', width: '8px', height: '8px', backgroundColor: '#10B981', borderRadius: '50%' }}></span>
+                                                    <span>Repeat: {((metrics.repeatCustomers / (metrics.newCustomers + metrics.repeatCustomers)) * 100).toFixed(0)}%</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Cafe Profile overview card */}
                             <div className="card" style={{ textAlign: 'left', marginBottom: '32px' }}>
@@ -501,6 +567,19 @@ export default function Dashboard({ cafe, token, onLogout, onUpdateCafe }) {
                                         placeholder="Enter UPI VPA address"
                                     />
                                     <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>Used to direct checkout deep links. Skip for now if testing.</p>
+                                </div>
+
+                                <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '16px', background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                                    <input
+                                        type="checkbox"
+                                        id="allow_platform_coupons"
+                                        checked={allowPlatformCoupons}
+                                        onChange={(e) => setAllowPlatformCoupons(e.target.checked)}
+                                        style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                                    />
+                                    <label htmlFor="allow_platform_coupons" style={{ cursor: 'pointer', fontSize: '14px', fontWeight: 'normal', color: '#fff', margin: 0 }}>
+                                        Accept Platform Promo Codes / Welcome Coupons
+                                    </label>
                                 </div>
 
                                 <button
