@@ -163,9 +163,15 @@ export default function CustomerEntry() {
             if (data.success) {
                 setTransactionResult(data.transaction);
                 setTransactionSuccess(true);
-                // Dynamically deduct applied cashback locally
+                // Dynamically deduct applied cashback or add earned cashback locally
+                let nextBal = walletBalance;
                 if (cbToApply > 0) {
-                    const nextBal = Math.max(0, walletBalance - cbToApply);
+                    nextBal = Math.max(0, nextBal - cbToApply);
+                }
+                if (selectedCoupon && selectedCoupon.discount_type === 'cashback') {
+                    nextBal = nextBal + parseFloat(selectedCoupon.discount_value);
+                }
+                if (nextBal !== walletBalance) {
                     localStorage.setItem('customerWalletBalance', nextBal.toString());
                     setWalletBalance(nextBal);
                 }
@@ -461,6 +467,10 @@ export default function CustomerEntry() {
         // Check minimum bill amount cap
         const minBill = parseFloat(selectedCoupon.min_bill_amount || 0);
         if (bill < minBill) return 0;
+
+        if (selectedCoupon.discount_type === 'cashback') {
+            return 0; // Cashback does not reduce the bill amount directly
+        }
 
         if (selectedCoupon.discount_type === 'percent') {
             return (bill * parseFloat(selectedCoupon.discount_value)) / 100;
@@ -792,9 +802,19 @@ export default function CustomerEntry() {
                     /* SUCCESS SCREEN */
                     <div className="card" style={{ padding: '36px 24px', textAlign: 'center', animation: 'fadeIn 0.4s ease' }}>
                         <div style={{ fontSize: '64px', marginBottom: '16px', color: '#10B981' }}>✅</div>
-                        <h2 style={{ fontSize: '26px', color: '#fff', marginBottom: '12px', fontWeight: 800 }}>Discount Redeemed!</h2>
+                        <h2 style={{ fontSize: '26px', color: '#fff', marginBottom: '12px', fontWeight: 800 }}>
+                            {selectedCoupon?.discount_type === 'cashback' ? 'Cashback Earned!' : 'Discount Redeemed!'}
+                        </h2>
                         <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '24px', lineHeight: '1.6' }}>
-                            Your coupon <strong>{selectedCoupon?.title}</strong> was successfully redeemed. A copy of the receipt has been emailed to you.
+                            {selectedCoupon?.discount_type === 'cashback' ? (
+                                <>
+                                    Your cashback coupon <strong>{selectedCoupon?.title}</strong> was applied. <strong>₹{parseFloat(selectedCoupon?.discount_value).toFixed(2)} Cashback</strong> has been added to your Wallet balance!
+                                </>
+                            ) : (
+                                <>
+                                    Your coupon <strong>{selectedCoupon?.title}</strong> was successfully redeemed. A copy of the receipt has been emailed to you.
+                                </>
+                            )}
                         </p>
 
                         <div style={{ background: 'rgba(255,255,255,0.02)', padding: '20px', borderRadius: '14px', border: '1px solid var(--border-color)', marginBottom: '28px', textAlign: 'left' }}>
@@ -1047,8 +1067,17 @@ export default function CustomerEntry() {
                                 </div>
                                 {selectedCoupon && (
                                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '6px' }}>
-                                        <span>Applied Coupon Discount ({selectedCoupon.title}):</span>
-                                        <span style={{ color: '#F87171' }}>- ₹{getDiscountedAmount().toFixed(2)}</span>
+                                        {selectedCoupon.discount_type === 'cashback' ? (
+                                            <>
+                                                <span>Cashback to be Earned:</span>
+                                                <span style={{ color: '#C084FC' }}>+ ₹{parseFloat(selectedCoupon.discount_value).toFixed(2)}</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <span>Applied Coupon Discount ({selectedCoupon.title}):</span>
+                                                <span style={{ color: '#F87171' }}>- ₹{getDiscountedAmount().toFixed(2)}</span>
+                                            </>
+                                        )}
                                     </div>
                                 )}
                                 {isCashbackApplied && getCashbackToApply() > 0 && (

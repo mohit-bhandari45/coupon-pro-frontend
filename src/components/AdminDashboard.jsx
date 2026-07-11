@@ -572,10 +572,12 @@ export default function AdminDashboard() {
 
                                         <div style={{ minWidth: '95px', textAlign: 'center', borderLeft: '1px dashed rgba(255, 255, 255, 0.1)', paddingLeft: '16px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                                             <span style={{ fontSize: '8px', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.5px' }}>DISCOUNT</span>
-                                            <span style={{ fontSize: '18px', fontWeight: 900, background: 'linear-gradient(135deg, #EF4444 30%, #F59E0B 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', fontFamily: 'monospace', margin: '2px 0' }}>
+                                            <span style={{ fontSize: '18px', fontWeight: 900, background: discountType === 'cashback' ? 'linear-gradient(135deg, #A855F7 30%, #C084FC 100%)' : 'linear-gradient(135deg, #EF4444 30%, #F59E0B 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', fontFamily: 'monospace', margin: '2px 0' }}>
                                                 {discountType === 'percent' ? `${discountValue || 0}%` : `₹${discountValue || 0}`}
                                             </span>
-                                            <span style={{ fontSize: '8px', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.5px' }}>OFF</span>
+                                            <span style={{ fontSize: '8px', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.5px' }}>
+                                                {discountType === 'cashback' ? 'CASHBACK' : 'OFF'}
+                                            </span>
                                         </div>
                                     </div>
                                 </div>
@@ -625,8 +627,9 @@ export default function AdminDashboard() {
                                                 className="form-input"
                                                 style={{ height: '45px' }}
                                             >
-                                                <option value="flat">Flat Cash Back (₹)</option>
+                                                <option value="flat">Flat Bill discount (₹)</option>
                                                 <option value="percent">Percentage Rate (%)</option>
+                                                <option value="cashback">Wallet Cashback Reward (Earn ₹)</option>
                                             </select>
                                         </div>
                                         <div className="form-group" style={{ margin: 0 }}>
