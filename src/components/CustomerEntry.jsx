@@ -65,6 +65,13 @@ export default function CustomerEntry() {
     const [isPromoLoading, setIsPromoLoading] = useState(false);
     const [promoError, setPromoError] = useState('');
 
+    // Referral sharing states
+    const [sharingCouponId, setSharingCouponId] = useState(null);
+    const [shareEmail, setShareEmail] = useState('');
+    const [shareMessage, setShareMessage] = useState('');
+    const [shareSuccess, setShareSuccess] = useState(false);
+    const [shareLoading, setShareLoading] = useState(false);
+
     // Auto-deselect coupon if bill amount drops below its min spend requirement
     useEffect(() => {
         if (selectedCoupon && billAmount) {
@@ -329,6 +336,58 @@ export default function CustomerEntry() {
         }
     };
 
+    const handleShareSubmit = async (e) => {
+        if (e) e.preventDefault();
+        if (!shareEmail.trim()) {
+            setShareMessage('Please enter an email address');
+            setShareSuccess(false);
+            return;
+        }
+        if (customerUser && shareEmail.trim().toLowerCase() === customerUser.email.toLowerCase()) {
+            setShareMessage('You cannot share a coupon with yourself!');
+            setShareSuccess(false);
+            return;
+        }
+        setShareLoading(true);
+        setShareMessage('');
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/wallet/share`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    referrerId: customerUser.id,
+                    couponId: sharingCouponId,
+                    refereeEmail: shareEmail.trim()
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                setShareSuccess(true);
+                setShareMessage('Gift successfully shared with your friend!');
+                setShareEmail('');
+                // Refresh wallet coupons to show remaining limit/uses
+                if (cafe?.id) {
+                    fetch(`${API_BASE_URL}/api/wallet?userId=${customerUser.id}&cafeId=${cafe.id}`)
+                        .then(r => r.json())
+                        .then(d => {
+                            if (d.success) setWalletCoupons(d.coupons || []);
+                        })
+                        .catch(console.error);
+                }
+            } else {
+                setShareSuccess(false);
+                setShareMessage(data.message || 'Failed to share coupon');
+            }
+        } catch (err) {
+            setShareSuccess(false);
+            setShareMessage('Network/server connection failed');
+        } finally {
+            setShareLoading(false);
+        }
+    };
+
     useEffect(() => {
         setLoading(true);
         setError('');
@@ -472,7 +531,10 @@ export default function CustomerEntry() {
             return (bill * parseFloat(selectedCoupon.discount_value)) / 100;
         } else {
             // Flat discount
-            return Math.min(bill, parseFloat(selectedCoupon.discount_value));
+            const val = selectedCoupon.referred_by
+                ? 0.80 * parseFloat(selectedCoupon.discount_value)
+                : parseFloat(selectedCoupon.discount_value);
+            return Math.min(bill, val);
         }
     };
 
@@ -575,10 +637,15 @@ export default function CustomerEntry() {
 
                                 <h4 style={{ fontSize: '16px', margin: '10px 0 4px 0', color: '#fff' }}>{coupon.title}</h4>
                                 <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: '0 0 10px 0' }}>{coupon.desc_text}</p>
-                                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center', width: '100%' }}>
                                     <div style={{ fontSize: '12px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)', display: 'inline-block', padding: '4px 10px', borderRadius: '6px', color: 'var(--text-secondary)' }}>
-                                        Discount: <strong style={{ color: '#fff' }}>{coupon.discount_type === 'percent' ? `${coupon.discount_value}% Off` : `₹${coupon.discount_value} Off`}</strong>
+                                        Discount: <strong style={{ color: '#fff' }}>{coupon.discount_type === 'percent' ? `${coupon.discount_value}% Off` : `₹${(coupon.referred_by ? 0.8 * parseFloat(coupon.discount_value) : parseFloat(coupon.discount_value)).toFixed(0)} Off`}</strong>
                                     </div>
+                                    {coupon.referred_by && coupon.discount_type === 'flat' && (
+                                        <div style={{ fontSize: '11px', color: '#60A5FA', border: '1px solid rgba(59, 130, 246, 0.2)', background: 'rgba(59, 130, 246, 0.05)', padding: '4px 10px', borderRadius: '6px', display: 'inline-flex', alignItems: 'center' }}>
+                                            🎁 Referral (80% off ₹{parseFloat(coupon.discount_value).toFixed(0)})
+                                        </div>
+                                    )}
                                     {parseFloat(coupon.min_bill_amount || 0) > 0 && (
                                         <div style={{
                                             fontSize: '11px',
@@ -594,7 +661,98 @@ export default function CustomerEntry() {
                                             <span>ⓘ Min Spend: <strong>₹{parseFloat(coupon.min_bill_amount).toFixed(2)}</strong> {isBelowMin && <span style={{ fontSize: '9px', fontWeight: 'bold' }}>(Need more)</span>}</span>
                                         </div>
                                     )}
+                                    {title.includes('Bank') && coupon.discount_type === 'flat' && !isWelcome && (
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (sharingCouponId === coupon.id) {
+                                                    setSharingCouponId(null);
+                                                } else {
+                                                    setSharingCouponId(coupon.id);
+                                                    setShareEmail('');
+                                                    setShareMessage('');
+                                                    setShareSuccess(false);
+                                                }
+                                            }}
+                                            style={{
+                                                background: 'rgba(59, 130, 246, 0.1)',
+                                                border: '1px solid rgba(59, 130, 246, 0.3)',
+                                                color: '#60A5FA',
+                                                padding: '4px 10px',
+                                                borderRadius: '6px',
+                                                fontSize: '11px',
+                                                fontWeight: 600,
+                                                cursor: 'pointer',
+                                                marginLeft: 'auto'
+                                            }}
+                                        >
+                                            Share & Refer 🎁
+                                        </button>
+                                    )}
                                 </div>
+
+                                {title.includes('Bank') && coupon.discount_type === 'flat' && !isWelcome && sharingCouponId === coupon.id && (
+                                    <div style={{
+                                        marginTop: '12px',
+                                        padding: '12px',
+                                        borderTop: '1px solid var(--border-color)',
+                                        background: 'rgba(255,255,255,0.01)',
+                                        borderRadius: '8px',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        gap: '8px',
+                                        width: '100%'
+                                    }} onClick={(e) => e.stopPropagation()}>
+                                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: '1.4' }}>
+                                            🎁 Referral Split: Your friend gets <b>80%</b> of the discount value (₹{(0.8 * coupon.discount_value).toFixed(0)}), and you receive <b>20%</b> (₹{(0.2 * coupon.discount_value).toFixed(0)}) as cashback upon their redemption.
+                                        </div>
+                                        <div style={{ display: 'flex', gap: '8px' }}>
+                                            <input
+                                                type="email"
+                                                placeholder="Friend's email address"
+                                                value={shareEmail}
+                                                onChange={(e) => setShareEmail(e.target.value)}
+                                                style={{
+                                                    flex: 1,
+                                                    padding: '6px 10px',
+                                                    background: 'rgba(0,0,0,0.2)',
+                                                    border: '1px solid var(--border-color)',
+                                                    borderRadius: '6px',
+                                                    color: '#fff',
+                                                    fontSize: '12px',
+                                                    outline: 'none'
+                                                }}
+                                            />
+                                            <button
+                                                type="button"
+                                                disabled={shareLoading}
+                                                onClick={handleShareSubmit}
+                                                style={{
+                                                    padding: '6px 12px',
+                                                    background: '#3B82F6',
+                                                    color: '#fff',
+                                                    border: 'none',
+                                                    borderRadius: '6px',
+                                                    fontSize: '11px',
+                                                    fontWeight: 600,
+                                                    cursor: 'pointer'
+                                                }}
+                                            >
+                                                {shareLoading ? 'Sending...' : 'Invite'}
+                                            </button>
+                                        </div>
+                                        {shareMessage && (
+                                            <div style={{
+                                                fontSize: '11px',
+                                                color: shareSuccess ? '#34D399' : '#F87171',
+                                                fontWeight: 500
+                                            }}>
+                                                {shareMessage}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         );
                     })}
