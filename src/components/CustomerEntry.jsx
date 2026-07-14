@@ -661,7 +661,7 @@ export default function CustomerEntry() {
                                             <span>ⓘ Min Spend: <strong>₹{parseFloat(coupon.min_bill_amount).toFixed(2)}</strong> {isBelowMin && <span style={{ fontSize: '9px', fontWeight: 'bold' }}>(Need more)</span>}</span>
                                         </div>
                                     )}
-                                    {title.includes('Bank') && coupon.discount_type === 'flat' && !isWelcome && (
+                                    {title.includes('Bank') && coupon.discount_type === 'flat' && !isWelcome && !coupon.referred_by && (
                                         <button
                                             type="button"
                                             onClick={(e) => {
@@ -692,7 +692,7 @@ export default function CustomerEntry() {
                                     )}
                                 </div>
 
-                                {title.includes('Bank') && coupon.discount_type === 'flat' && !isWelcome && sharingCouponId === coupon.id && (
+                                {title.includes('Bank') && coupon.discount_type === 'flat' && !isWelcome && !coupon.referred_by && sharingCouponId === coupon.id && (
                                     <div style={{
                                         marginTop: '12px',
                                         padding: '12px',
