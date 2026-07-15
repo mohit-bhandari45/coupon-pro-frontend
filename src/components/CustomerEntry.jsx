@@ -72,6 +72,40 @@ export default function CustomerEntry() {
     const [shareSuccess, setShareSuccess] = useState(false);
     const [shareLoading, setShareLoading] = useState(false);
 
+    // KYC Profile States
+    const [isProfileOpen, setIsProfileOpen] = useState(false);
+    const [profileName, setProfileName] = useState('');
+    const [profilePhone, setProfilePhone] = useState('');
+    const [profileDob, setProfileDob] = useState('');
+    const [profileGender, setProfileGender] = useState('');
+    const [profileCity, setProfileCity] = useState('');
+
+    useEffect(() => {
+        if (customerUser) {
+            setProfileName(customerUser.name || '');
+            setProfilePhone(customerUser.phone || '');
+            setProfileDob(customerUser.dob || '');
+            setProfileGender(customerUser.gender || '');
+            setProfileCity(customerUser.city || '');
+        }
+    }, [customerUser]);
+
+    const handleSaveProfile = (e) => {
+        if (e) e.preventDefault();
+        const updatedUser = {
+            ...customerUser,
+            name: profileName,
+            phone: profilePhone,
+            dob: profileDob,
+            gender: profileGender,
+            city: profileCity
+        };
+        localStorage.setItem('customerUser', JSON.stringify(updatedUser));
+        setCustomerUser(updatedUser);
+        setIsProfileOpen(false);
+        alert('KYC Profile updated successfully!');
+    };
+
     // Auto-deselect coupon if bill amount drops below its min spend requirement
     useEffect(() => {
         if (selectedCoupon && billAmount) {
@@ -206,6 +240,7 @@ export default function CustomerEntry() {
     const [advertisedCoupons, setAdvertisedCoupons] = useState([]);
     const [claimingIds, setClaimingIds] = useState(new Set());
     const [claimedIds, setClaimedIds] = useState(new Set());
+    const [hasClaimedPromo, setHasClaimedPromo] = useState(false);
 
     const handleResetFlow = () => {
         setBillAmount('');
@@ -224,6 +259,7 @@ export default function CustomerEntry() {
         setPromoError('');
         setClaimingIds(new Set());
         setClaimedIds(new Set());
+        setHasClaimedPromo(false);
 
         // Refresh user coupon bank
         if (customerUser?.id && cafe?.id) {
@@ -291,6 +327,10 @@ export default function CustomerEntry() {
 
     const handleClaimCoupon = async (couponId) => {
         if (!customerUser?.id) return;
+        if (hasClaimedPromo) {
+            alert('You can only claim 1 promotional coupon per transaction!');
+            return;
+        }
         setClaimingIds(prev => new Set([...prev, couponId]));
         try {
             const res = await fetch(`${API_BASE_URL}/api/wallet/claim`, {
@@ -306,6 +346,7 @@ export default function CustomerEntry() {
             const data = await res.json();
             if (data.success) {
                 setClaimedIds(prev => new Set([...prev, couponId]));
+                setHasClaimedPromo(true);
                 // Re-fetch active bank coupons
                 if (cafe?.id) {
                     fetch(`${API_BASE_URL}/api/wallet?userId=${customerUser.id}&cafeId=${cafe.id}`)
@@ -798,9 +839,9 @@ export default function CustomerEntry() {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 8px', marginBottom: '16px' }}>
                     <div className="nav-brand" style={{ fontSize: '20px' }}>
                         <div className="nav-logo-icon" style={{ width: '30px', height: '30px', borderRadius: '8px', fontSize: '16px' }}>
-                            {cafe?.logo_url ? <img src={cafe.logo_url} alt="Logo" style={{ width: '100%', height: '100%', borderRadius: '8px' }} /> : '☕'}
+                            🎟️
                         </div>
-                        <span>{cafe?.name}</span>
+                        <span>RedPerks</span>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         {customerUser && (
@@ -830,7 +871,27 @@ export default function CustomerEntry() {
                                 Logout ⤶
                             </button>
                         )}
-                        <div className="badge" style={{ margin: 0, padding: '4px 10px', fontSize: '11px' }}>Customer Portal</div>
+                        {customerUser ? (
+                            <button
+                                type="button"
+                                onClick={() => setIsProfileOpen(true)}
+                                className="badge"
+                                style={{
+                                    margin: 0,
+                                    padding: '4px 10px',
+                                    fontSize: '11px',
+                                    cursor: 'pointer',
+                                    background: 'rgba(192, 132, 252, 0.1)',
+                                    border: '1px solid rgba(192, 132, 252, 0.3)',
+                                    color: '#C084FC',
+                                    fontWeight: 600
+                                }}
+                            >
+                                👤 Customer Profile
+                            </button>
+                        ) : (
+                            <div className="badge" style={{ margin: 0, padding: '4px 10px', fontSize: '11px' }}>Customer Portal</div>
+                        )}
                     </div>
                 </div>
 
@@ -975,22 +1036,31 @@ export default function CustomerEntry() {
                             )}
                         </p>
 
-                        <div style={{ background: 'rgba(255,255,255,0.02)', padding: '20px', borderRadius: '14px', border: '1px solid var(--border-color)', marginBottom: '28px', textAlign: 'left' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px', color: 'var(--text-muted)' }}>
-                                <span>Cafe:</span>
-                                <span style={{ color: '#fff', fontWeight: 600 }}>{cafe?.name}</span>
+                        {/* Graphical Steps Journey Tracker */}
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            margin: '24px 0 32px 0',
+                            gap: '4px',
+                            background: 'rgba(255, 255, 255, 0.02)',
+                            padding: '16px 12px',
+                            borderRadius: '12px',
+                            border: '1px solid rgba(255, 255, 255, 0.05)'
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '20px', height: '20px', borderRadius: '50%', background: '#10B981', color: '#fff', fontSize: '10px', fontWeight: 'bold' }}>✓</span>
+                                <span style={{ fontSize: '12px', color: '#fff', fontWeight: 600 }}>Scanned</span>
                             </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px', color: 'var(--text-muted)' }}>
-                                <span>Receipt Code:</span>
-                                <span style={{ color: 'var(--color-accent)', fontWeight: 700, fontFamily: 'monospace' }}>{transactionResult?.id || 't-884930'}</span>
+                            <div style={{ width: '30px', height: '2px', background: '#10B981' }} />
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '20px', height: '20px', borderRadius: '50%', background: '#10B981', color: '#fff', fontSize: '10px', fontWeight: 'bold' }}>✓</span>
+                                <span style={{ fontSize: '12px', color: '#fff', fontWeight: 600 }}>Locked</span>
                             </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px', color: 'var(--text-muted)' }}>
-                                <span>Discount Savings:</span>
-                                <span style={{ color: '#F87171', fontWeight: 600 }}>- ₹{parseFloat(transactionResult?.discount_amount || 0).toFixed(2)}</span>
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', borderTop: '1px solid var(--border-color)', paddingTop: '10px', color: 'var(--text-muted)' }}>
-                                <span style={{ fontWeight: 700, color: '#fff' }}>Paid Amount:</span>
-                                <span style={{ color: '#34D399', fontWeight: 800 }}>₹{parseFloat(transactionResult?.payable_amount || 0).toFixed(2)}</span>
+                            <div style={{ width: '30px', height: '2px', background: 'linear-gradient(90deg, #10B981, #C084FC)' }} />
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '20px', height: '20px', borderRadius: '50%', background: '#C084FC', color: '#fff', fontSize: '10.5px', fontWeight: 'bold', boxShadow: '0 0 8px rgba(192, 132, 252, 0.6)' }}>3</span>
+                                <span style={{ fontSize: '12px', color: '#C084FC', fontWeight: 700 }}>Settled</span>
                             </div>
                         </div>
 
@@ -1007,6 +1077,7 @@ export default function CustomerEntry() {
                                             onClaim={handleClaimCoupon}
                                             isClaimed={claimedIds.has(promo.id)}
                                             isClaiming={claimingIds.has(promo.id)}
+                                            disabled={hasClaimedPromo}
                                         />
                                     ))}
                                 </div>
@@ -1276,6 +1347,149 @@ export default function CustomerEntry() {
                     </form>
                 )}
             </div>
+
+            {/* Customer KYC Profile Drawer Modal */}
+            {isProfileOpen && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    background: 'rgba(0, 0, 0, 0.65)',
+                    backdropFilter: 'blur(8px)',
+                    zIndex: 9999,
+                    display: 'flex',
+                    justifyContent: 'flex-end',
+                    animation: 'fadeIn 0.25s ease'
+                }}>
+                    <div className="card" style={{
+                        width: '100%',
+                        maxWidth: '420px',
+                        height: '100%',
+                        margin: 0,
+                        borderRadius: 0,
+                        borderLeft: '1px solid var(--border-color)',
+                        padding: '30px 24px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                        overflowY: 'auto',
+                        background: '#131217',
+                        animation: 'slideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)'
+                    }}>
+                        <div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                                <h2 style={{ fontSize: '24px', color: '#fff', margin: 0, fontWeight: 700 }}>👤 KYC Profile</h2>
+                                <button
+                                    type="button"
+                                    onClick={() => setIsProfileOpen(false)}
+                                    style={{
+                                        background: 'rgba(255,255,255,0.05)',
+                                        border: '1px solid var(--border-color)',
+                                        color: 'var(--text-secondary)',
+                                        borderRadius: '50%',
+                                        width: '32px',
+                                        height: '32px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        cursor: 'pointer',
+                                        fontSize: '16px'
+                                    }}
+                                >
+                                    ✕
+                                </button>
+                            </div>
+                            <p style={{ color: 'var(--text-secondary)', fontSize: '13px', marginBottom: '28px', lineHeight: '1.5' }}>
+                                Capture your profile details and complete customer KYC to track rewards and personalized perks securely.
+                            </p>
+
+                            <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '16px', textAlign: 'left' }}>
+                                <div>
+                                    <label className="form-label" style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Full Name</label>
+                                    <input
+                                        type="text"
+                                        className="form-input"
+                                        value={profileName}
+                                        onChange={(e) => setProfileName(e.target.value)}
+                                        placeholder="e.g. John Doe"
+                                        required
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="form-label" style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Email Address (Verified)</label>
+                                    <input
+                                        type="email"
+                                        className="form-input"
+                                        value={customerUser?.email || ''}
+                                        disabled
+                                        style={{ opacity: 0.6, cursor: 'not-allowed', background: 'rgba(255,255,255,0.02)' }}
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="form-label" style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Phone Number</label>
+                                    <input
+                                        type="tel"
+                                        className="form-input"
+                                        value={profilePhone}
+                                        onChange={(e) => setProfilePhone(e.target.value)}
+                                        placeholder="e.g. +91 98765 43210"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="form-label" style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Date of Birth</label>
+                                    <input
+                                        type="date"
+                                        className="form-input"
+                                        value={profileDob}
+                                        onChange={(e) => setProfileDob(e.target.value)}
+                                        style={{ height: '42px', colorScheme: 'dark' }}
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="form-label" style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Gender</label>
+                                    <select
+                                        className="form-input"
+                                        value={profileGender}
+                                        onChange={(e) => setProfileGender(e.target.value)}
+                                        style={{ background: '#1c1b22', border: '1px solid var(--border-color)', height: '42px', color: '#fff', borderRadius: '8px', padding: '0 12px', width: '100%' }}
+                                    >
+                                        <option value="">Select Gender</option>
+                                        <option value="Male">Male</option>
+                                        <option value="Female">Female</option>
+                                        <option value="Other">Other</option>
+                                        <option value="Prefer Not to Say">Prefer Not to Say</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="form-label" style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>City / Location</label>
+                                    <input
+                                        type="text"
+                                        className="form-input"
+                                        value={profileCity}
+                                        onChange={(e) => setProfileCity(e.target.value)}
+                                        placeholder="e.g. Mumbai"
+                                    />
+                                </div>
+
+                                <button
+                                    type="submit"
+                                    className="btn btn-primary"
+                                    style={{ width: '100%', height: '48px', marginTop: '16px' }}
+                                >
+                                    Save KYC Profile
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

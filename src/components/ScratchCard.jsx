@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 
-const ScratchCard = ({ coupon, onClaim, isClaimed, isClaiming }) => {
+const ScratchCard = ({ coupon, onClaim, isClaimed, isClaiming, disabled }) => {
     const canvasRef = useRef(null);
     const containerRef = useRef(null);
     const [isRevealed, setIsRevealed] = useState(false);
@@ -45,7 +45,7 @@ const ScratchCard = ({ coupon, onClaim, isClaimed, isClaiming }) => {
             ctx.fillStyle = '#1e293b';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText('Scratch here to reveal offer!', rect.width / 2, rect.height / 2);
+            ctx.fillText(disabled ? 'Locked (1 Claim Limit)' : 'Scratch here to reveal offer!', rect.width / 2, rect.height / 2);
         };
 
         resizeCanvas();
@@ -53,7 +53,7 @@ const ScratchCard = ({ coupon, onClaim, isClaimed, isClaiming }) => {
         // Optional: Re-run resize on window change
         window.addEventListener('resize', resizeCanvas);
         return () => window.removeEventListener('resize', resizeCanvas);
-    }, [isRevealed]);
+    }, [isRevealed, disabled]);
 
     const getMousePos = (e) => {
         const canvas = canvasRef.current;
@@ -71,7 +71,7 @@ const ScratchCard = ({ coupon, onClaim, isClaimed, isClaiming }) => {
     };
 
     const draw = (e) => {
-        if (!isDrawing || isRevealed) return;
+        if (!isDrawing || isRevealed || disabled) return;
 
         // Prevent default touch scrolling when scratching
         if (e.cancelable) {
@@ -202,7 +202,7 @@ const ScratchCard = ({ coupon, onClaim, isClaimed, isClaiming }) => {
                     <button
                         type="button"
                         onClick={() => {
-                            if (!isClaimed) {
+                            if (!isClaimed && !disabled) {
                                 // Claim and copy coupon code in one layout action
                                 navigator.clipboard.writeText(coupon.id);
                                 setCopied(true);
@@ -210,7 +210,7 @@ const ScratchCard = ({ coupon, onClaim, isClaimed, isClaiming }) => {
                                 onClaim(coupon.id);
                             }
                         }}
-                        disabled={isClaimed || isClaiming}
+                        disabled={isClaimed || isClaiming || (disabled && !isClaimed)}
                         className="btn"
                         style={{
                             padding: '0 12px',
@@ -221,16 +221,26 @@ const ScratchCard = ({ coupon, onClaim, isClaimed, isClaiming }) => {
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            background: isClaimed ? 'rgba(52, 211, 153, 0.15)' : 'linear-gradient(135deg, #8B5CF6 0%, #6D28D9 100%)',
+                            background: isClaimed
+                                ? 'rgba(52, 211, 153, 0.15)'
+                                : (disabled && !isClaimed)
+                                    ? 'rgba(255, 255, 255, 0.05)'
+                                    : 'linear-gradient(135deg, #8B5CF6 0%, #6D28D9 100%)',
                             borderColor: isClaimed ? '#10B981' : 'transparent',
-                            color: isClaimed ? '#34D399' : '#fff',
+                            color: isClaimed ? '#34D399' : (disabled && !isClaimed) ? 'var(--text-muted)' : '#fff',
                             fontWeight: 600,
                             borderRadius: '8px',
                             transition: 'all 0.2s ease',
                             gap: '4px'
                         }}
                     >
-                        {isClaiming ? 'Claiming...' : isClaimed ? '✓ Claimed & Code Copied' : '🎁 Claim & Copy Code'}
+                        {isClaiming
+                            ? 'Claiming...'
+                            : isClaimed
+                                ? '✓ Claimed & Code Copied'
+                                : (disabled && !isClaimed)
+                                    ? '🔒 Locked (Limit Reached)'
+                                    : '🎁 Claim & Copy Code'}
                     </button>
                 ) : (
                     // Phantom space-keeper to matching card height before reveal

@@ -12,7 +12,7 @@ export default function LandingPage() {
             <header className="navbar">
                 <div className="container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div className="nav-brand">
-                        <div className="nav-logo-icon">☕</div>
+                        <div className="nav-logo-icon">🎟️</div>
                         <span>RedPerks</span>
                     </div>
 
@@ -33,15 +33,15 @@ export default function LandingPage() {
                 <div className="container">
                     <div className="badge">PWA Loyalty Platform</div>
                     <h1 className="hero-title">
-                        Retain Customers with <span className="title-gradient"><br />WhatsApp-Based Loyalty</span>
+                        Retain Customers with <span className="title-gradient"><br />QR-Based Coupons</span>
                     </h1>
                     <p className="hero-description">
-                        A frictionless, single-scan web app for local cafes. No app downloads required. Verified OTP claims, instant UPI deep-links, and automated owner reconciliation.
+                        A frictionless, single-scan web app for local businesses. No app downloads required. Verified OTP claims, instant UPI deep-links, and automated owner reconciliation.
                     </p>
 
                     <div className="flex-btn-group" style={{ marginTop: '10px' }}>
                         <button onClick={() => navigate('/auth')} className="btn btn-primary" style={{ padding: '14px 28px' }}>
-                            Onboard Your Cafe
+                            Onboard Your Business
                             <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
                             </svg>
@@ -57,7 +57,7 @@ export default function LandingPage() {
             <section id="features" className="features-section">
                 <div className="container">
                     <div className="section-header">
-                        <h2 className="section-title">Built for Local Cafes, Loved by Customers</h2>
+                        <h2 className="section-title">Built for Local Businesses, Loved by Customers</h2>
                         <p className="section-subtitle">
                             We replace outdated paper cards and slow app downloads with an instant, abuse-proof QR code framework.
                         </p>

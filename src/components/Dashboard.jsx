@@ -33,6 +33,41 @@ export default function Dashboard({ cafe, token, onLogout, onUpdateCafe }) {
     const [hoveredBtnId, setHoveredBtnId] = useState(null);
     const [couponLoading, setCouponLoading] = useState(false);
 
+    // Ad Campaign Fields
+    const [adCampaigns, setAdCampaigns] = useState([
+        { id: 1, title: 'Summer Special Discount', budget: 5000, audience: 'Foodies', duration: '7 Days', status: 'Running', impressions: 1250, clicks: 180, ctr: '14.4%' },
+        { id: 2, title: 'Weekend Combo Deal', budget: 3000, audience: 'Students', duration: '5 Days', status: 'Paused', impressions: 840, clicks: 92, ctr: '10.9%' },
+        { id: 3, title: 'Early Bird Promo', budget: 1500, audience: 'All Customers', duration: '3 Days', status: 'Completed', impressions: 600, clicks: 42, ctr: '7.0%' },
+    ]);
+    const [adTitle, setAdTitle] = useState('');
+    const [adBudget, setAdBudget] = useState('');
+    const [adAudience, setAdAudience] = useState('All Customers');
+    const [adDuration, setAdDuration] = useState('7 Days');
+
+    const handleCreateAdCampaign = (e) => {
+        e.preventDefault();
+        if (!adTitle.trim() || !adBudget || !adAudience || !adDuration) return;
+
+        const newAd = {
+            id: adCampaigns.length + 1,
+            title: adTitle.trim(),
+            budget: parseFloat(adBudget),
+            audience: adAudience,
+            duration: adDuration,
+            status: 'Running',
+            impressions: 0,
+            clicks: 0,
+            ctr: '0.0%'
+        };
+
+        setAdCampaigns([newAd, ...adCampaigns]);
+        setAdTitle('');
+        setAdBudget('');
+        setAdAudience('All Customers');
+        setAdDuration('7 Days');
+        setSuccessMsg('Ad Campaign launched successfully!');
+    };
+
     // Fetch Cafe coupons list
     const fetchCoupons = async () => {
         if (!cafe?.slug) return;
@@ -232,7 +267,7 @@ export default function Dashboard({ cafe, token, onLogout, onUpdateCafe }) {
             <header className="navbar">
                 <div className="container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div className="nav-brand">
-                        <div className="nav-logo-icon">☕</div>
+                        <div className="nav-logo-icon">🎟️</div>
                         <span>{cafe.name} <span style={{ fontSize: '12px', fontWeight: 'normal', color: 'var(--text-secondary)' }}>Dashboard</span></span>
                     </div>
 
@@ -275,6 +310,15 @@ export default function Dashboard({ cafe, token, onLogout, onUpdateCafe }) {
                                 style={{ background: 'none', border: 'none', width: '100%', textAlign: 'left' }}
                             >
                                 🔑 Loyalty Coupons
+                            </button>
+                        </li>
+                        <li className="sidebar-item">
+                            <button
+                                onClick={() => { setActiveTab('ads'); setSuccessMsg(''); setErrorMsg(''); }}
+                                className={`sidebar-link ${activeTab === 'ads' ? 'active' : ''}`}
+                                style={{ background: 'none', border: 'none', width: '100%', textAlign: 'left' }}
+                            >
+                                📢 Ads Manager
                             </button>
                         </li>
                     </ul>
@@ -399,34 +443,7 @@ export default function Dashboard({ cafe, token, onLogout, onUpdateCafe }) {
                                 </div>
                             )}
 
-                            {/* Cafe Profile overview card */}
-                            <div className="card" style={{ textAlign: 'left', marginBottom: '32px' }}>
-                                <h3 style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '12px', marginBottom: '20px' }}>
-                                    Cafe Information
-                                </h3>
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px' }}>
-                                    <div>
-                                        <h4 style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: 0, textTransform: 'uppercase' }}>Cafe Name</h4>
-                                        <p style={{ fontSize: '16px', fontWeight: 600, color: 'white', marginTop: '4px' }}>{cafe.name}</p>
-                                    </div>
-                                    <div>
-                                        <h4 style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: 0, textTransform: 'uppercase' }}>Branch Slug</h4>
-                                        <p style={{ fontSize: '16px', fontWeight: 600, color: 'white', marginTop: '4px' }}>{cafe.slug}</p>
-                                    </div>
-                                    <div>
-                                        <h4 style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: 0, textTransform: 'uppercase' }}>Registered Email</h4>
-                                        <p style={{ fontSize: '16px', fontWeight: 600, color: 'white', marginTop: '4px' }}>{cafe.email}</p>
-                                    </div>
-                                    <div>
-                                        <h4 style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: 0, textTransform: 'uppercase' }}>Registered Address</h4>
-                                        <p style={{ fontSize: '16px', fontWeight: 600, color: 'white', marginTop: '4px' }}>{cafe.address || 'N/A'}</p>
-                                    </div>
-                                    <div>
-                                        <h4 style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: 0, textTransform: 'uppercase' }}>UPI ID (Payment Address)</h4>
-                                        <p style={{ fontSize: '16px', fontWeight: 600, color: '#C084FC', marginTop: '4px' }}>{cafe.upi_id || 'Not Set (Set in Settings)'}</p>
-                                    </div>
-                                </div>
-                            </div>
+
 
                             {/* Coupons & Transaction lists */}
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '30px' }}>
@@ -834,6 +851,165 @@ export default function Dashboard({ cafe, token, onLogout, onUpdateCafe }) {
                                             );
                                         })
                                 )}
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'ads' && (
+                        <div>
+                            <div style={{ marginBottom: '32px' }}>
+                                <h2 style={{ fontSize: '28px', marginBottom: '8px' }}>📢 Ads Manager</h2>
+                                <p style={{ color: 'var(--text-secondary)' }}>Launch targeted promotions, display banners across the RedPerks customer wallet feed, and measure real-time marketing ROI.</p>
+                            </div>
+
+                            {/* Ad Stats Row */}
+                            <div className="dashboard-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '16px', marginBottom: '32px' }}>
+                                <div className="card stat-card" style={{ padding: '16px' }}>
+                                    <div className="stat-label" style={{ fontSize: '11px' }}>Total Ad Budget</div>
+                                    <div className="stat-value" style={{ fontSize: '22px' }}>₹{adCampaigns.reduce((sum, c) => sum + c.budget, 0).toFixed(2)}</div>
+                                </div>
+                                <div className="card stat-card" style={{ padding: '16px' }}>
+                                    <div className="stat-label" style={{ fontSize: '11px' }}>Total Impressions</div>
+                                    <div className="stat-value" style={{ fontSize: '22px' }}>{adCampaigns.reduce((sum, c) => sum + c.impressions, 0)}</div>
+                                </div>
+                                <div className="card stat-card" style={{ padding: '16px' }}>
+                                    <div className="stat-label" style={{ fontSize: '11px' }}>Total Click-Throughs</div>
+                                    <div className="stat-value" style={{ fontSize: '22px' }}>{adCampaigns.reduce((sum, c) => sum + c.clicks, 0)}</div>
+                                </div>
+                                <div className="card stat-card" style={{ padding: '16px', borderLeft: '3px solid #10B981' }}>
+                                    <div className="stat-label" style={{ fontSize: '11px', color: '#10B981' }}>Average CTR</div>
+                                    <div className="stat-value" style={{ fontSize: '22px' }}>
+                                        {(() => {
+                                            const totalImp = adCampaigns.reduce((sum, c) => sum + c.impressions, 0);
+                                            const totalClk = adCampaigns.reduce((sum, c) => sum + c.clicks, 0);
+                                            return totalImp > 0 ? `${((totalClk / totalImp) * 100).toFixed(1)}%` : '0.0%';
+                                        })()}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '30px', textAlign: 'left' }}>
+                                {/* Left side: Launch Ad Form */}
+                                <div className="card" style={{ height: 'fit-content' }}>
+                                    <h3 style={{ fontSize: '20px', marginBottom: '8px' }}>🚀 Launch Ad Campaign</h3>
+                                    <p style={{ color: 'var(--text-secondary)', marginBottom: '24px', fontSize: '13px' }}>Reach nearby shoppers with targeted mobile wallet banners.</p>
+
+                                    <form onSubmit={handleCreateAdCampaign}>
+                                        <div className="form-group">
+                                            <label className="form-label">Ad Campaign Title</label>
+                                            <input
+                                                type="text"
+                                                className="form-input"
+                                                value={adTitle}
+                                                onChange={(e) => setAdTitle(e.target.value)}
+                                                placeholder="e.g. Free Dessert with Main Course"
+                                                required
+                                            />
+                                        </div>
+
+                                        <div className="form-group">
+                                            <label className="form-label">Campaign Target Audience</label>
+                                            <select
+                                                className="form-input"
+                                                value={adAudience}
+                                                onChange={(e) => setAdAudience(e.target.value)}
+                                                style={{ background: '#1c1b22', border: '1px solid var(--border-color)', height: '42px', color: '#fff', borderRadius: '8px', padding: '0 12px', width: '100%' }}
+                                            >
+                                                <option value="All Customers">All Local Customers</option>
+                                                <option value="Foodies">Foodies & Diners</option>
+                                                <option value="Students">College Students</option>
+                                                <option value="Working Professionals">Working Professionals</option>
+                                            </select>
+                                        </div>
+
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                                            <div className="form-group">
+                                                <label className="form-label">Total Budget (₹)</label>
+                                                <input
+                                                    type="number"
+                                                    className="form-input"
+                                                    value={adBudget}
+                                                    onChange={(e) => setAdBudget(e.target.value)}
+                                                    placeholder="e.g. 5000"
+                                                    min="500"
+                                                    required
+                                                />
+                                            </div>
+
+                                            <div className="form-group">
+                                                <label className="form-label">Ad Duration</label>
+                                                <select
+                                                    className="form-input"
+                                                    value={adDuration}
+                                                    onChange={(e) => setAdDuration(e.target.value)}
+                                                    style={{ background: '#1c1b22', border: '1px solid var(--border-color)', height: '42px', color: '#fff', borderRadius: '8px', padding: '0 12px', width: '100%' }}
+                                                >
+                                                    <option value="3 Days">3 Days</option>
+                                                    <option value="5 Days">5 Days</option>
+                                                    <option value="7 Days">7 Days</option>
+                                                    <option value="15 Days">15 Days</option>
+                                                    <option value="30 Days">30 Days</option>
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        <button
+                                            type="submit"
+                                            className="btn btn-primary"
+                                            style={{ width: '100%', marginTop: '12px', height: '44px' }}
+                                        >
+                                            Publish Campaign Live
+                                        </button>
+                                    </form>
+                                </div>
+
+                                {/* Right side: Ad Campaigns list */}
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                    <h3 style={{ fontSize: '20px', margin: 0, paddingBottom: '4px' }}>Active Campaigns</h3>
+                                    {adCampaigns.length === 0 ? (
+                                        <div className="card" style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                                            No advertising campaigns launched yet.
+                                        </div>
+                                    ) : (
+                                        adCampaigns.map((ad) => (
+                                            <div key={ad.id} className="card" style={{ padding: '20px', borderLeft: ad.status === 'Running' ? '3px solid #10B981' : ad.status === 'Paused' ? '3px solid #F59E0B' : '3px solid var(--text-muted)' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                                    <span style={{
+                                                        background: ad.status === 'Running' ? 'rgba(16, 185, 129, 0.1)' : ad.status === 'Paused' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(255,255,255,0.05)',
+                                                        border: ad.status === 'Running' ? '1px solid rgba(16, 185, 129, 0.3)' : ad.status === 'Paused' ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid var(--border-color)',
+                                                        color: ad.status === 'Running' ? '#34D399' : ad.status === 'Paused' ? '#FBBF24' : 'var(--text-muted)',
+                                                        padding: '2px 8px',
+                                                        borderRadius: '100px',
+                                                        fontSize: '10px',
+                                                        fontWeight: 600,
+                                                        textTransform: 'uppercase'
+                                                    }}>
+                                                        {ad.status}
+                                                    </span>
+                                                    <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                                                        Target: <strong>{ad.audience}</strong> ({ad.duration})
+                                                    </span>
+                                                </div>
+                                                <h4 style={{ fontSize: '16px', margin: '4px 0', color: '#fff' }}>{ad.title}</h4>
+
+                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginTop: '16px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.03)' }}>
+                                                    <div>
+                                                        <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Impressions</div>
+                                                        <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#fff' }}>{ad.impressions}</div>
+                                                    </div>
+                                                    <div>
+                                                        <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Clicks</div>
+                                                        <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#fff' }}>{ad.clicks}</div>
+                                                    </div>
+                                                    <div>
+                                                        <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Spend / Budget</div>
+                                                        <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#34D399' }}>₹{ad.status === 'Running' ? (ad.budget * 0.15).toFixed(0) : ad.budget} / ₹{ad.budget}</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
                             </div>
                         </div>
                     )}

@@ -78,7 +78,7 @@ export default function AuthPage({ onAuthSuccess }) {
                         className="nav-brand"
                         style={{ background: 'none', border: 'none', cursor: 'pointer' }}
                     >
-                        <div className="nav-logo-icon">☕</div>
+                        <div className="nav-logo-icon">🎟️</div>
                         <span>RedPerks</span>
                     </button>
                 </div>
@@ -87,10 +87,10 @@ export default function AuthPage({ onAuthSuccess }) {
             <div style={{ width: '100%', maxWidth: '500px', padding: '20px', marginTop: '60px' }}>
                 <div className="card" style={{ padding: '40px', background: 'linear-gradient(180deg, #1b1926 0%, #0E0D14 100%)' }}>
                     <h2 style={{ textAlign: 'center', marginBottom: '8px', fontSize: '28px', color: '#fff' }}>
-                        {isLogin ? 'Welcome Back' : 'Register your Cafe'}
+                        {isLogin ? 'Welcome Back' : 'Onboard Your Business'}
                     </h2>
                     <p style={{ textAlign: 'center', color: 'var(--text-secondary)', marginBottom: '24px', fontSize: '15px' }}>
-                        {isLogin ? 'Log in to manage your loyalty dashboard' : 'Join local cafes and build customer loyalty'}
+                        {isLogin ? 'Log in to manage your loyalty dashboard' : 'Join local merchants and build customer loyalty'}
                     </p>
 
                     {error && (
@@ -106,19 +106,19 @@ export default function AuthPage({ onAuthSuccess }) {
                         {!isLogin && (
                             <>
                                 <div className="form-group">
-                                    <label className="form-label">Cafe Name</label>
+                                    <label className="form-label">Business Name</label>
                                     <input
                                         type="text"
                                         className="form-input"
                                         value={cafeName}
                                         onChange={(e) => setCafeName(e.target.value)}
-                                        placeholder="e.g. Brew & Co. Cafe"
+                                        placeholder="e.g. RedPerks Retail"
                                         required
                                     />
                                 </div>
 
                                 <div className="form-group">
-                                    <label className="form-label">Owner Name</label>
+                                    <label className="form-label">Merchant Name</label>
                                     <input
                                         type="text"
                                         className="form-input"
@@ -130,7 +130,7 @@ export default function AuthPage({ onAuthSuccess }) {
                                 </div>
 
                                 <div className="form-group">
-                                    <label className="form-label">Cafe Address</label>
+                                    <label className="form-label">Business Address</label>
                                     <input
                                         type="text"
                                         className="form-input"
@@ -174,12 +174,12 @@ export default function AuthPage({ onAuthSuccess }) {
                             style={{ width: '100%', marginTop: '10px', height: '48px' }}
                             disabled={loading}
                         >
-                            {loading ? 'Authenticating...' : isLogin ? 'Sign In to Dashboard' : 'Register & Setup Cafe'}
+                            {loading ? 'Authenticating...' : isLogin ? 'Sign In to Dashboard' : 'Register & Setup Business'}
                         </button>
                     </form>
 
                     <div style={{ textAlign: 'center', marginTop: '24px', fontSize: '14px', color: 'var(--text-secondary)' }}>
-                        {isLogin ? "Don't have an onboarded cafe?" : "Already registered your cafe?"}{' '}
+                        {isLogin ? "Don't have an onboarded business?" : "Already registered your business?"}{' '}
                         <button
                             onClick={() => {
                                 setIsLogin(!isLogin);
@@ -187,7 +187,7 @@ export default function AuthPage({ onAuthSuccess }) {
                             }}
                             style={{ background: 'none', border: 'none', color: '#c084fc', cursor: 'pointer', fontWeight: 600, padding: 0 }}
                         >
-                            {isLogin ? 'Onboard Cafe Now' : 'Sign In'}
+                            {isLogin ? 'Onboard Business Now' : 'Sign In'}
                         </button>
                     </div>
                 </div>
