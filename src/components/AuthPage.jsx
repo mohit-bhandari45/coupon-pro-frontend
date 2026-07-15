@@ -8,6 +8,10 @@ export default function AuthPage({ onAuthSuccess }) {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
+    const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
+    const [verificationEmail, setVerificationEmail] = useState('');
+    const [otpCodeInput, setOtpCodeInput] = useState('');
+
     // Form Fields
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -49,8 +53,20 @@ export default function AuthPage({ onAuthSuccess }) {
 
             const data = await response.json();
 
-            if (!response.ok || !data.success) {
+            if (!response.ok) {
+                if (data.code === 'EMAIL_UNVERIFIED' || data.verified === false) {
+                    setVerificationEmail(data.email || email);
+                    setIsVerifyingOtp(true);
+                    setError(data.message || 'Verification needed.');
+                    return;
+                }
                 throw new Error(data.message || 'Authentication failed');
+            }
+
+            if (data.verified === false) {
+                setVerificationEmail(data.email || email);
+                setIsVerifyingOtp(true);
+                return;
             }
 
             // Save credentials in Session / Local Storage
@@ -65,6 +81,119 @@ export default function AuthPage({ onAuthSuccess }) {
             setLoading(false);
         }
     };
+
+    const handleVerifyOtp = async (e) => {
+        e.preventDefault();
+        setError('');
+        setLoading(true);
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/auth/verify-merchant-otp`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ email: verificationEmail, code: otpCodeInput }),
+            });
+
+            const data = await response.json();
+
+            if (!response.ok || !data.success) {
+                throw new Error(data.message || 'OTP verification failed');
+            }
+
+            // Save credentials in Session / Local Storage
+            localStorage.setItem('ownerToken', data.token);
+            localStorage.setItem('ownerCafe', JSON.stringify(data.cafe));
+
+            onAuthSuccess(data.cafe, data.token);
+            navigate('/dashboard');
+        } catch (err) {
+            setError(err.message || 'An error occurred during verification');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    if (isVerifyingOtp) {
+        return (
+            <div style={{ relative: 'position', minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+                <div className="bg-glow"></div>
+
+                {/* Small Navbar Header */}
+                <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', padding: '24px' }}>
+                    <div className="container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <button
+                            onClick={() => navigate('/')}
+                            className="nav-brand"
+                            style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+                        >
+                            <div className="nav-logo-icon">🎟️</div>
+                            <span>RedPerks</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div style={{ width: '100%', maxWidth: '500px', padding: '20px', marginTop: '60px' }}>
+                    <div className="card" style={{ padding: '40px', background: 'linear-gradient(180deg, #1b1926 0%, #0E0D14 100%)' }}>
+                        <h2 style={{ textAlign: 'center', marginBottom: '8px', fontSize: '28px', color: '#fff' }}>
+                            Verify Email Address
+                        </h2>
+                        <p style={{ textAlign: 'center', color: 'var(--text-secondary)', marginBottom: '24px', fontSize: '15px' }}>
+                            Please enter the 6-digit verification code sent to <strong>{verificationEmail}</strong>.
+                        </p>
+
+                        {error && (
+                            <div className="alert-banner alert-error">
+                                <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                                <span>{error}</span>
+                            </div>
+                        )}
+
+                        <form onSubmit={handleVerifyOtp}>
+                            <div className="form-group">
+                                <label className="form-label" style={{ textAlign: 'center', display: 'block', marginBottom: '12px' }}>6-Digit Verification OTP</label>
+                                <input
+                                    type="text"
+                                    className="form-input"
+                                    style={{ letterSpacing: '4px', textAlign: 'center', fontSize: '20px', fontWeight: 'bold' }}
+                                    value={otpCodeInput}
+                                    onChange={(e) => setOtpCodeInput(e.target.value.replace(/\D/g, '').substring(0, 6))}
+                                    placeholder="000000"
+                                    required
+                                />
+                            </div>
+
+                            <button
+                                type="submit"
+                                className="btn btn-primary"
+                                style={{ width: '100%', marginTop: '10px', height: '48px' }}
+                                disabled={loading}
+                            >
+                                {loading ? 'Checking OTP...' : 'Verify & Setup Dashboard'}
+                            </button>
+                        </form>
+
+                        <div style={{ textAlign: 'center', marginTop: '24px', fontSize: '14px', color: 'var(--text-secondary)' }}>
+                            Entered wrong email?{' '}
+                            <button
+                                onClick={() => {
+                                    setIsVerifyingOtp(false);
+                                    setOtpCodeInput('');
+                                    setError('');
+                                }}
+                                style={{ background: 'none', border: 'none', color: '#c084fc', cursor: 'pointer', fontWeight: 600, padding: 0 }}
+                            >
+                                Return to Forms
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div style={{ relative: 'position', minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>

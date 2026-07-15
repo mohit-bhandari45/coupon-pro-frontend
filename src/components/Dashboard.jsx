@@ -117,12 +117,12 @@ export default function Dashboard({ cafe, token, onLogout, onUpdateCafe }) {
     }, [cafe]);
 
     useEffect(() => {
-        if (!token || !cafe) {
-            navigate('/');
+        if (!token || !cafe || !cafe.email_verified) {
+            navigate('/auth');
         }
     }, [token, cafe, navigate]);
 
-    if (!token || !cafe) {
+    if (!token || !cafe || !cafe.email_verified) {
         return null;
     }
 
