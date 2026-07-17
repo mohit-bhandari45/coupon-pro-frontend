@@ -33,39 +33,79 @@ export default function Dashboard({ cafe, token, onLogout, onUpdateCafe }) {
     const [hoveredBtnId, setHoveredBtnId] = useState(null);
     const [couponLoading, setCouponLoading] = useState(false);
 
-    // Ad Campaign Fields
-    const [adCampaigns, setAdCampaigns] = useState([
-        { id: 1, title: 'Summer Special Discount', budget: 5000, audience: 'Foodies', duration: '7 Days', status: 'Running', impressions: 1250, clicks: 180, ctr: '14.4%' },
-        { id: 2, title: 'Weekend Combo Deal', budget: 3000, audience: 'Students', duration: '5 Days', status: 'Paused', impressions: 840, clicks: 92, ctr: '10.9%' },
-        { id: 3, title: 'Early Bird Promo', budget: 1500, audience: 'All Customers', duration: '3 Days', status: 'Completed', impressions: 600, clicks: 42, ctr: '7.0%' },
-    ]);
+    // Ad Campaign Fields State
     const [adTitle, setAdTitle] = useState('');
+    const [adDesc, setAdDesc] = useState('');
     const [adBudget, setAdBudget] = useState('');
     const [adAudience, setAdAudience] = useState('All Customers');
     const [adDuration, setAdDuration] = useState('7 Days');
+    const [adDiscountType, setAdDiscountType] = useState('percent');
+    const [adDiscountValue, setAdDiscountValue] = useState('');
+    const [adMinBillAmount, setAdMinBillAmount] = useState('');
 
-    const handleCreateAdCampaign = (e) => {
+    const adCampaigns = coupons.filter(c => c.is_advertised === true).map(c => ({
+        id: c.id,
+        title: c.title,
+        budget: parseFloat(c.ad_budget || 0),
+        audience: c.ad_audience || 'All Customers',
+        duration: c.ad_duration || '7 Days',
+        status: c.is_active !== false ? 'Running' : 'Paused',
+        impressions: parseInt(c.ad_impressions || 0),
+        clicks: parseInt(c.ad_clicks || 0),
+        ctr: (c.ad_impressions > 0 ? `${(parseFloat(c.ad_clicks || 0) / parseFloat(c.ad_impressions) * 100).toFixed(1)}%` : '0.0%')
+    }));
+
+    const handleCreateAdCampaign = async (e) => {
         e.preventDefault();
-        if (!adTitle.trim() || !adBudget || !adAudience || !adDuration) return;
+        if (!adTitle.trim() || !adDesc.trim() || !adBudget || !adDiscountValue) return;
 
-        const newAd = {
-            id: adCampaigns.length + 1,
-            title: adTitle.trim(),
-            budget: parseFloat(adBudget),
-            audience: adAudience,
-            duration: adDuration,
-            status: 'Running',
-            impressions: 0,
-            clicks: 0,
-            ctr: '0.0%'
-        };
+        setSuccessMsg('');
+        setErrorMsg('');
+        setCouponLoading(true);
 
-        setAdCampaigns([newAd, ...adCampaigns]);
-        setAdTitle('');
-        setAdBudget('');
-        setAdAudience('All Customers');
-        setAdDuration('7 Days');
-        setSuccessMsg('Ad Campaign launched successfully!');
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/cafe/coupons`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    title: adTitle.trim(),
+                    desc_text: adDesc.trim(),
+                    badge_label: 'Ad Campaign',
+                    discount_type: adDiscountType,
+                    discount_value: parseFloat(adDiscountValue),
+                    max_uses: 99999,
+                    frequency_per_day: 99999,
+                    min_bill_amount: adMinBillAmount ? parseFloat(adMinBillAmount) : 0,
+                    is_advertised: true,
+                    ad_budget: parseFloat(adBudget),
+                    ad_audience: adAudience,
+                    ad_duration: adDuration
+                })
+            });
+
+            const data = await response.json();
+            if (!response.ok || !data.success) {
+                throw new Error(data.message || 'Failed to launch ad campaign');
+            }
+
+            setSuccessMsg('Ad Campaign launched successfully!');
+            setAdTitle('');
+            setAdDesc('');
+            setAdBudget('');
+            setAdAudience('All Customers');
+            setAdDuration('7 Days');
+            setAdDiscountValue('');
+            setAdMinBillAmount('');
+
+            await fetchCoupons();
+        } catch (err) {
+            setErrorMsg(err.message || 'Error launching ad campaign');
+        } finally {
+            setCouponLoading(false);
+        }
     };
 
     // Fetch Cafe coupons list
@@ -760,17 +800,17 @@ export default function Dashboard({ cafe, token, onLogout, onUpdateCafe }) {
                                             borderBottom: couponFilterTab === 'archived' ? '2px solid var(--color-accent)' : 'none'
                                         }}
                                     >
-                                        Archived ({coupons.filter(c => c.is_active === false).length})
+                                        Archived ({coupons.filter(c => c.is_advertised !== true && c.is_active === false).length})
                                     </button>
                                 </div>
 
-                                {coupons.filter(c => couponFilterTab === 'active' ? c.is_active !== false : c.is_active === false).length === 0 ? (
+                                {coupons.filter(c => c.is_advertised !== true && (couponFilterTab === 'active' ? c.is_active !== false : c.is_active === false)).length === 0 ? (
                                     <div className="card" style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
                                         {couponFilterTab === 'active' ? 'No active coupons created yet.' : 'No archived coupons.'}
                                     </div>
                                 ) : (
                                     coupons
-                                        .filter(c => couponFilterTab === 'active' ? c.is_active !== false : c.is_active === false)
+                                        .filter(c => c.is_advertised !== true && (couponFilterTab === 'active' ? c.is_active !== false : c.is_active === false))
                                         .map((coupon) => {
                                             const total = coupon.max_uses ?? coupon.frequency_per_day ?? 1;
                                             const remaining = coupon.remaining_uses !== undefined ? coupon.remaining_uses : total;
@@ -904,6 +944,58 @@ export default function Dashboard({ cafe, token, onLogout, onUpdateCafe }) {
                                                 onChange={(e) => setAdTitle(e.target.value)}
                                                 placeholder="e.g. Free Dessert with Main Course"
                                                 required
+                                            />
+                                        </div>
+
+                                        <div className="form-group">
+                                            <label className="form-label">Ad Description</label>
+                                            <textarea
+                                                className="form-input"
+                                                value={adDesc}
+                                                onChange={(e) => setAdDesc(e.target.value)}
+                                                placeholder="Describe the offer details to display on scratch card..."
+                                                style={{ background: '#1c1b22', border: '1px solid var(--border-color)', color: '#fff', borderRadius: '8px', padding: '12px', width: '100%', minHeight: '60px', fontFamily: 'inherit', outline: 'none', resize: 'vertical' }}
+                                                required
+                                            />
+                                        </div>
+
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                                            <div className="form-group">
+                                                <label className="form-label">Discount Type</label>
+                                                <select
+                                                    className="form-input"
+                                                    value={adDiscountType}
+                                                    onChange={(e) => setAdDiscountType(e.target.value)}
+                                                    style={{ background: '#1c1b22', border: '1px solid var(--border-color)', height: '42px', color: '#fff', borderRadius: '8px', padding: '0 12px', width: '100%' }}
+                                                >
+                                                    <option value="percent">Percentage Off (%)</option>
+                                                    <option value="flat">Flat Off (₹)</option>
+                                                </select>
+                                            </div>
+
+                                            <div className="form-group">
+                                                <label className="form-label">Discount Value</label>
+                                                <input
+                                                    type="number"
+                                                    className="form-input"
+                                                    value={adDiscountValue}
+                                                    onChange={(e) => setAdDiscountValue(e.target.value)}
+                                                    placeholder={adDiscountType === 'percent' ? 'e.g. 15' : 'e.g. 50'}
+                                                    min="1"
+                                                    required
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="form-group">
+                                            <label className="form-label">Minimum Bill / Spend (₹)</label>
+                                            <input
+                                                type="number"
+                                                className="form-input"
+                                                value={adMinBillAmount}
+                                                onChange={(e) => setAdMinBillAmount(e.target.value)}
+                                                placeholder="e.g. 150 (0 for no limit)"
+                                                min="0"
                                             />
                                         </div>
 

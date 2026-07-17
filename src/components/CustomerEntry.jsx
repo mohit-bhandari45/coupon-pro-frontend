@@ -1334,13 +1334,15 @@ export default function CustomerEntry() {
                             className={`btn btn-primary`}
                             style={{ height: '52px', marginTop: '12px' }}
                             disabled={
-                                (!selectedCoupon && !isCashbackApplied) ||
-                                (selectedCoupon && remainingCredits === 0)
+                                (selectedCoupon && remainingCredits === 0) ||
+                                !billAmount ||
+                                isNaN(billAmount) ||
+                                parseFloat(billAmount) <= 0
                             }
                         >
                             {selectedCoupon && remainingCredits === 0
                                 ? 'Credits Limit Exhausted'
-                                : 'Verify & Lock Discount'
+                                : (selectedCoupon || isCashbackApplied ? 'Verify & Lock Discount' : 'Confirm & Proceed to Pay')
                             }
                         </button>
                         <div style={{ height: '30px' }}></div>
