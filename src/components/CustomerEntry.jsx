@@ -32,6 +32,17 @@ export default function CustomerEntry() {
         return saved ? parseFloat(saved) : 0;
     });
 
+    const [merchantCredits, setMerchantCredits] = useState(0);
+    const [isEarnOpen, setIsEarnOpen] = useState(false);
+
+    // Live Earning Simulators
+    const [adTimer, setAdTimer] = useState(null);
+    const [videoTimer, setVideoTimer] = useState(null);
+    const [surveyStep, setSurveyStep] = useState(0); // 0 = closed, 1, 2, 3 = steps, 4 = done
+    const [surveyRating, setSurveyRating] = useState(5);
+    const [surveyOrder, setSurveyOrder] = useState('');
+    const [surveyRecommend, setSurveyRecommend] = useState('yes');
+
     const [authMode, setAuthMode] = useState('login'); // 'login' or 'register'
     const [isCashbackApplied, setIsCashbackApplied] = useState(false);
 
@@ -237,6 +248,82 @@ export default function CustomerEntry() {
         }
     };
 
+    const refreshCredits = async () => {
+        if (!customerUser?.id) return;
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/wallet/credits?userId=${customerUser.id}&cafeId=${cafe?.id || ''}`);
+            const data = await res.json();
+            if (data.success) {
+                setRemainingCredits(data.platform);
+                setMerchantCredits(data.merchant);
+                localStorage.setItem('customerCredits', data.platform.toString());
+            }
+        } catch (err) {
+            console.error('Error refreshing credits:', err);
+        }
+    };
+
+    const handleEarnCredit = async (actionType) => {
+        if (!customerUser?.id) return;
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/wallet/earn-credit`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    userId: customerUser.id,
+                    actionType,
+                    cafeId: cafe?.id
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                setRemainingCredits(data.platform);
+                setMerchantCredits(data.merchant);
+                localStorage.setItem('customerCredits', data.platform.toString());
+                return true;
+            } else {
+                alert(data.message || 'Failed to earn credit.');
+                return false;
+            }
+        } catch (err) {
+            console.error('Error earning credit:', err);
+            alert('Failed to earn credit.');
+            return false;
+        }
+    };
+
+    useEffect(() => {
+        let interval;
+        if (adTimer !== null && adTimer > 0) {
+            interval = setInterval(() => {
+                setAdTimer(prev => prev - 1);
+            }, 1000);
+        } else if (adTimer === 0) {
+            setAdTimer(null);
+            handleEarnCredit('watch-ad').then(ok => {
+                if (ok) alert('🎉 Reward: +1 Platform Credit added to your account!');
+            });
+        }
+        return () => clearInterval(interval);
+    }, [adTimer]);
+
+    useEffect(() => {
+        let interval;
+        if (videoTimer !== null && videoTimer > 0) {
+            interval = setInterval(() => {
+                setVideoTimer(prev => prev - 1);
+            }, 1000);
+        } else if (videoTimer === 0) {
+            setVideoTimer(null);
+            handleEarnCredit('cafe-video').then(ok => {
+                if (ok) alert('🎉 Reward: +1 Cafe-Specific Credit added to your account!');
+            });
+        }
+        return () => clearInterval(interval);
+    }, [videoTimer]);
+
     const [advertisedCoupons, setAdvertisedCoupons] = useState([]);
     const [claimingIds, setClaimingIds] = useState(new Set());
     const [claimedIds, setClaimedIds] = useState(new Set());
@@ -282,17 +369,7 @@ export default function CustomerEntry() {
         }
 
         // Refresh customer credits
-        if (customerUser?.email) {
-            fetch(`${API_BASE_URL}/api/auth/credits/${customerUser.email}`)
-                .then(res => res.json())
-                .then(data => {
-                    if (data.success) {
-                        localStorage.setItem('customerCredits', data.remaining.toString());
-                        setRemainingCredits(data.remaining);
-                    }
-                })
-                .catch(console.error);
-        }
+        refreshCredits();
     };
 
     // Fetch user wallet coupons whenever user or cafe changes
@@ -459,13 +536,13 @@ export default function CustomerEntry() {
                 setLoading(false);
             });
 
-        if (customerUser?.email) {
+        if (customerUser?.id) {
+            refreshCredits();
+            // Fetch wallet balance
             fetch(`${API_BASE_URL}/api/auth/credits/${customerUser.email}`)
                 .then(res => res.json())
                 .then(data => {
                     if (data.success) {
-                        localStorage.setItem('customerCredits', data.remaining.toString());
-                        setRemainingCredits(data.remaining);
                         const bal = data.walletBalance !== undefined ? parseFloat(data.walletBalance) : 0;
                         localStorage.setItem('customerWalletBalance', bal.toString());
                         setWalletBalance(bal);
@@ -620,7 +697,8 @@ export default function CustomerEntry() {
                         const isBelowMin = minBill > 0 && (!billAmount || parseFloat(billAmount) < minBill);
                         const welcomeIds = ['WELCOME10', 'FREEBUI', 'FEST25'];
                         const isWelcome = welcomeIds.includes(coupon.id);
-                        const isExhausted = (coupon.remaining_uses !== undefined && coupon.remaining_uses <= 0) || (isWelcome && remainingCredits === 0);
+                        const totalCredits = remainingCredits + merchantCredits;
+                        const isExhausted = (coupon.remaining_uses !== undefined && coupon.remaining_uses <= 0) || (totalCredits <= 0);
                         const isCouponDisabled = isExhausted || isBelowMin;
 
                         return (
@@ -1149,17 +1227,32 @@ export default function CustomerEntry() {
                         {/* Customer Credits & Cashback Wallet Panel */}
                         {customerUser && (
                             <div style={{ display: 'flex', gap: '10px' }}>
-                                <div className="card" style={{
-                                    flex: 1,
-                                    padding: '12px 16px',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    borderLeft: remainingCredits === 0 ? '4px solid #EF4444' : '4px solid #34D399',
-                                    background: 'rgba(255,255,255,0.01)'
-                                }}>
-                                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Redemption Credits</div>
+                                <div
+                                    onClick={() => setIsEarnOpen(true)}
+                                    className="card"
+                                    style={{
+                                        flex: 1,
+                                        padding: '12px 16px',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        borderLeft: (remainingCredits + merchantCredits) === 0 ? '4px solid #EF4444' : '4px solid #34D399',
+                                        background: 'rgba(255,255,255,0.01)',
+                                        cursor: 'pointer',
+                                        transition: 'transform 0.2s',
+                                        userSelect: 'none'
+                                    }}
+                                    onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'}
+                                    onMouseLeave={e => e.currentTarget.style.transform = 'scale(1.0)'}
+                                >
+                                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+                                        <span>Redemption Credits ⚡</span>
+                                        <span style={{ color: '#C084FC', fontWeight: 600 }}>Earn</span>
+                                    </div>
                                     <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff', marginTop: '4px' }}>
-                                        {remainingCredits === 0 ? '0 (Exhausted)' : `${remainingCredits} Left`}
+                                        {(remainingCredits + merchantCredits) === 0 ? '0 (Exhausted)' : `${remainingCredits + merchantCredits} Left`}
+                                    </div>
+                                    <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px', lineHeight: '1.2' }}>
+                                        Platform: {remainingCredits} | Cafe: {merchantCredits}
                                     </div>
                                 </div>
                                 <div className="card" style={{
@@ -1322,9 +1415,12 @@ export default function CustomerEntry() {
                             </div>
                         )}
 
-                        {selectedCoupon && remainingCredits === 0 && (
-                            <div style={{ padding: '12px 16px', borderRadius: '10px', backgroundColor: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#F87171', fontSize: '13px', textAlign: 'center', fontWeight: '500' }}>
-                                ⚠️ You have exhausted your maximum limit of 3 coupon claims. You cannot redeem welcome coupons.
+                        {selectedCoupon && (remainingCredits + merchantCredits) === 0 && (
+                            <div style={{ padding: '12px 16px', borderRadius: '10px', backgroundColor: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#F87171', fontSize: '13px', textAlign: 'center', fontWeight: '500', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                <span>⚠️ You have 0 credits remaining. Please earn credits to proceed with coupon checkout.</span>
+                                <button type="button" onClick={() => setIsEarnOpen(true)} className="btn btn-secondary" style={{ padding: '8px', fontSize: '12px', height: 'auto', background: 'rgba(139, 92, 246, 0.2)', border: 'none', color: '#fff', cursor: 'pointer' }}>
+                                    ⚡ Open Earning Dashboard
+                                </button>
                             </div>
                         )}
 
@@ -1334,13 +1430,13 @@ export default function CustomerEntry() {
                             className={`btn btn-primary`}
                             style={{ height: '52px', marginTop: '12px' }}
                             disabled={
-                                (selectedCoupon && remainingCredits === 0) ||
+                                (selectedCoupon && (remainingCredits + merchantCredits) === 0) ||
                                 !billAmount ||
                                 isNaN(billAmount) ||
                                 parseFloat(billAmount) <= 0
                             }
                         >
-                            {selectedCoupon && remainingCredits === 0
+                            {selectedCoupon && (remainingCredits + merchantCredits) === 0
                                 ? 'Credits Limit Exhausted'
                                 : (selectedCoupon || isCashbackApplied ? 'Verify & Lock Discount' : 'Confirm & Proceed to Pay')
                             }
@@ -1489,6 +1585,282 @@ export default function CustomerEntry() {
                                 </button>
                             </form>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Earn Credits Gamified Dashboard Drawer Modal */}
+            {isEarnOpen && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    background: 'rgba(0, 0, 0, 0.7)',
+                    backdropFilter: 'blur(10px)',
+                    zIndex: 9999,
+                    display: 'flex',
+                    justifyContent: 'flex-end',
+                    animation: 'fadeIn 0.25s ease'
+                }}>
+                    <div className="card" style={{
+                        width: '100%',
+                        maxWidth: '420px',
+                        height: '100%',
+                        margin: 0,
+                        borderRadius: 0,
+                        borderLeft: '1px solid var(--border-color)',
+                        padding: '30px 24px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                        overflowY: 'auto',
+                        background: '#0B0A0F',
+                        animation: 'slideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)'
+                    }}>
+                        <div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                                <div>
+                                    <h2 style={{ fontSize: '24px', color: '#fff', margin: 0, fontWeight: 700 }}>⚡ Earn Credits</h2>
+                                    <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>Complete sponsor & cafe tasks to avoid checkout friction!</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setIsEarnOpen(false);
+                                        setSurveyStep(0);
+                                    }}
+                                    style={{
+                                        background: 'rgba(255,255,255,0.05)',
+                                        border: '1px solid var(--border-color)',
+                                        color: 'var(--text-secondary)',
+                                        borderRadius: '50%',
+                                        width: '32px',
+                                        height: '32px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        cursor: 'pointer',
+                                        fontSize: '16px'
+                                    }}
+                                >
+                                    ✕
+                                </button>
+                            </div>
+
+                            {/* Current Balances Header */}
+                            <div style={{ display: 'flex', gap: '8px', marginBottom: '24px' }}>
+                                <div style={{ flex: 1, padding: '12px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)', borderRadius: '10px', textAlign: 'center' }}>
+                                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Platform Credits</div>
+                                    <div style={{ fontSize: '18px', fontWeight: 800, color: '#34D399', marginTop: '4px' }}>{remainingCredits}</div>
+                                </div>
+                                <div style={{ flex: 1, padding: '12px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)', borderRadius: '10px', textAlign: 'center' }}>
+                                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Cafe Credits ({cafe?.slug?.toUpperCase()})</div>
+                                    <div style={{ fontSize: '18px', fontWeight: 800, color: '#C084FC', marginTop: '4px' }}>{merchantCredits}</div>
+                                </div>
+                            </div>
+
+                            {/* Task List */}
+                            <h3 style={{ fontSize: '14px', color: '#fff', marginBottom: '12px', fontWeight: 600 }}>Available Tasks</h3>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+
+                                {/* Task 1: Watch Ad */}
+                                <div className="card" style={{ padding: '16px', background: 'rgba(255,255,255,0.01)' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <div>
+                                            <h4 style={{ fontSize: '14px', margin: 0, color: '#fff' }}>📺 Watch Sponsor Video (10s)</h4>
+                                            <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>Grants platform-wide credit</p>
+                                        </div>
+                                        <div style={{ fontSize: '12px', fontWeight: 700, color: '#34D399' }}>+1 Credit</div>
+                                    </div>
+                                    {adTimer !== null ? (
+                                        <div style={{ marginTop: '12px' }}>
+                                            <div style={{ fontSize: '12px', color: '#34D399', marginBottom: '4px', textAlign: 'center' }}>Watching Ad... {adTimer}s remaining</div>
+                                            <div style={{ height: '6px', background: 'rgba(255,255,255,0.1)', borderRadius: '3px', overflow: 'hidden' }}>
+                                                <div style={{ height: '100%', background: '#34D399', width: `${(10 - adTimer) * 10}%`, transition: 'width 1.0s linear' }} />
+                                            </div>
+                                            <div style={{ marginTop: '8px', padding: '8px', background: 'rgba(52, 211, 153, 0.05)', borderRadius: '6px', border: '1px dashed rgba(52, 211, 153, 0.2)', fontSize: '11px', color: '#34D399', textAlign: 'center' }}>
+                                                🥤 Drink PRIME: Hydration & energy combined. Unleash your limits!
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <button
+                                            type="button"
+                                            onClick={() => setAdTimer(10)}
+                                            className="btn btn-primary"
+                                            style={{ marginTop: '12px', height: '36px', fontSize: '12px', background: 'rgba(52, 211, 153, 0.1)', color: '#34D399', border: '1px solid rgba(52, 211, 153, 0.3)', cursor: 'pointer' }}
+                                        >
+                                            Play Sponsor Ad
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* Task 2: Instagram Follow */}
+                                <div className="card" style={{ padding: '16px', background: 'rgba(255,255,255,0.01)' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <div>
+                                            <h4 style={{ fontSize: '14px', margin: 0, color: '#fff' }}>📸 Follow RedPerks on Instagram</h4>
+                                            <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>Grants platform-wide credit</p>
+                                        </div>
+                                        <div style={{ fontSize: '12px', fontWeight: 700, color: '#34D399' }}>+1 Credit</div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={async () => {
+                                            window.open('https://instagram.com', '_blank');
+                                            const ok = await handleEarnCredit('follow-ig');
+                                            if (ok) alert('🎉 Reward: +1 Platform Credit added for social follow!');
+                                        }}
+                                        className="btn btn-primary"
+                                        style={{ marginTop: '12px', height: '36px', fontSize: '12px', background: 'rgba(52, 211, 153, 0.1)', color: '#34D399', border: '1px solid rgba(52, 211, 153, 0.3)', cursor: 'pointer' }}
+                                    >
+                                        Join & Follow on IG
+                                    </button>
+                                </div>
+
+                                {/* Task 3: Cafe Spotlight Video */}
+                                <div className="card" style={{ padding: '16px', background: 'rgba(255,255,255,0.01)' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <div>
+                                            <h4 style={{ fontSize: '14px', margin: 0, color: '#fff' }}>🎬 Watch Cafe Spotlight (10s)</h4>
+                                            <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>Grants {cafe?.name} Specific Credit</p>
+                                        </div>
+                                        <div style={{ fontSize: '12px', fontWeight: 700, color: '#C084FC' }}>+1 Credit</div>
+                                    </div>
+                                    {videoTimer !== null ? (
+                                        <div style={{ marginTop: '12px' }}>
+                                            <div style={{ fontSize: '12px', color: '#C084FC', marginBottom: '4px', textAlign: 'center' }}>Spotlight Active... {videoTimer}s remaining</div>
+                                            <div style={{ height: '6px', background: 'rgba(255,255,255,0.1)', borderRadius: '3px', overflow: 'hidden' }}>
+                                                <div style={{ height: '100%', background: '#C084FC', width: `${(10 - videoTimer) * 10}%`, transition: 'width 1.0s linear' }} />
+                                            </div>
+                                            <div style={{ marginTop: '8px', padding: '10px', background: 'rgba(192, 132, 252, 0.05)', borderRadius: '6.5px', border: '1px dashed rgba(192, 132, 252, 0.25)', fontSize: '11px', color: '#D8B4FE', textAlign: 'center' }}>
+                                                ☕ Welcome to {cafe?.name}! We roast our own single-origin beans daily to deliver unparalleled aromatic espresso profiles.
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <button
+                                            type="button"
+                                            onClick={() => setVideoTimer(10)}
+                                            className="btn btn-primary"
+                                            style={{ marginTop: '12px', height: '36px', fontSize: '12px', background: 'rgba(192, 132, 252, 0.1)', color: '#C084FC', border: '1px solid rgba(192, 132, 252, 0.3)', cursor: 'pointer' }}
+                                        >
+                                            Watch Cafe Video
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* Task 4: Cafe Survey Questionnaire */}
+                                <div className="card" style={{ padding: '16px', background: 'rgba(255,255,255,0.01)' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <div>
+                                            <h4 style={{ fontSize: '14px', margin: 0, color: '#fff' }}>📝 Take Cafe Feedback Survey</h4>
+                                            <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>Grants {cafe?.name} Specific Credits</p>
+                                        </div>
+                                        <div style={{ fontSize: '12px', fontWeight: 700, color: '#C084FC' }}>+2 Credits!</div>
+                                    </div>
+
+                                    {surveyStep === 0 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setSurveyStep(1)}
+                                            className="btn btn-primary"
+                                            style={{ marginTop: '12px', height: '36px', fontSize: '12px', background: 'rgba(192, 132, 252, 0.1)', color: '#C084FC', border: '1px solid rgba(192, 132, 252, 0.3)', cursor: 'pointer' }}
+                                        >
+                                            Start Quick Survey (3 Qs)
+                                        </button>
+                                    )}
+
+                                    {surveyStep === 1 && (
+                                        <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                            <div style={{ fontSize: '12px', color: '#fff' }}><b>Q1:</b> How would you rate service speed today? (1-5 Stars)</div>
+                                            <div style={{ display: 'flex', gap: '6px' }}>
+                                                {[1, 2, 3, 4, 5].map(num => (
+                                                    <button
+                                                        key={num}
+                                                        type="button"
+                                                        onClick={() => setSurveyRating(num)}
+                                                        style={{ flex: 1, padding: '6px', fontSize: '12px', border: '1px solid var(--border-color)', borderRadius: '6px', color: '#fff', cursor: 'pointer', background: surveyRating === num ? '#8b5cf6' : 'rgba(0,0,0,0.2)' }}
+                                                    >
+                                                        {num} ★
+                                                    </button>
+                                                ))}
+                                            </div>
+                                            <button type="button" onClick={() => setSurveyStep(2)} className="btn btn-primary" style={{ height: '30px', fontSize: '11px', alignSelf: 'flex-end', width: 'auto', padding: '0 12px', cursor: 'pointer' }}>Next Question ➔</button>
+                                        </div>
+                                    )}
+
+                                    {surveyStep === 2 && (
+                                        <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                            <div style={{ fontSize: '12px', color: '#fff' }}><b>Q2:</b> What is your favorite menu item at {cafe?.name}?</div>
+                                            <input
+                                                type="text"
+                                                placeholder="e.g. Aromatic Flat White"
+                                                value={surveyOrder}
+                                                onChange={(e) => setSurveyOrder(e.target.value)}
+                                                className="form-input"
+                                                style={{ height: '36px', fontSize: '12px', margin: 0 }}
+                                            />
+                                            <div style={{ display: 'flex', gap: '8px', alignSelf: 'flex-end' }}>
+                                                <button type="button" onClick={() => setSurveyStep(1)} className="btn btn-secondary" style={{ height: '30px', fontSize: '11px', width: 'auto', padding: '0 12px', cursor: 'pointer' }}>Back</button>
+                                                <button type="button" onClick={() => setSurveyStep(3)} className="btn btn-primary" style={{ height: '30px', fontSize: '11px', width: 'auto', padding: '0 12px', cursor: 'pointer' }}>Next ➔</button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {surveyStep === 3 && (
+                                        <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                            <div style={{ fontSize: '12px', color: '#fff' }}><b>Q3:</b> Would you recommend us to your friends?</div>
+                                            <div style={{ display: 'flex', gap: '8px' }}>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setSurveyRecommend('yes')}
+                                                    style={{ flex: 1, padding: '8px', fontSize: '12px', border: '1px solid var(--border-color)', borderRadius: '6px', color: '#fff', cursor: 'pointer', background: surveyRecommend === 'yes' ? '#8b5cf6' : 'rgba(0,0,0,0.2)' }}
+                                                >
+                                                    Yes, definitely!
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setSurveyRecommend('no')}
+                                                    style={{ flex: 1, padding: '8px', fontSize: '12px', border: '1px solid var(--border-color)', borderRadius: '6px', color: '#fff', cursor: 'pointer', background: surveyRecommend === 'no' ? '#8b5cf6' : 'rgba(0,0,0,0.2)' }}
+                                                >
+                                                    Not sure
+                                                </button>
+                                            </div>
+                                            <div style={{ display: 'flex', gap: '8px', alignSelf: 'flex-end', marginTop: '4px' }}>
+                                                <button type="button" onClick={() => setSurveyStep(2)} className="btn btn-secondary" style={{ height: '30px', fontSize: '11px', width: 'auto', padding: '0 12px', cursor: 'pointer' }}>Back</button>
+                                                <button
+                                                    type="button"
+                                                    onClick={async () => {
+                                                        const ok = await handleEarnCredit('cafe-survey');
+                                                        if (ok) {
+                                                            setSurveyStep(0);
+                                                            alert('🎉 Reward: +2 Cafe-Specific Credits added for feedback!');
+                                                        }
+                                                    }}
+                                                    className="btn btn-primary"
+                                                    style={{ height: '30px', fontSize: '11px', width: 'auto', padding: '0 12px', background: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)', cursor: 'pointer' }}
+                                                >
+                                                    Submit Answers 🚀
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setIsEarnOpen(false);
+                                setSurveyStep(0);
+                            }}
+                            className="btn btn-secondary"
+                            style={{ width: '100%', height: '48px', marginTop: '24px', cursor: 'pointer' }}
+                        >
+                            Return to Entry Portal
+                        </button>
                     </div>
                 </div>
             )}
